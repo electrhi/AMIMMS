@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 echo "🚀 Starting Gunicorn..."
 
-# Render 환경에서 가상환경 경로를 명시적으로 추가
-export PATH="/opt/render/project/src/.venv/bin:$PATH"
+# 자동으로 gunicorn 위치 탐색
+GUNICORN_PATH=$(find /opt/render/project/src -type f -name gunicorn | head -n 1)
 
-# gunicorn 실행
-exec /opt/render/project/src/.venv/bin/gunicorn --workers=2 --bind 0.0.0.0:$PORT app:app
+if [ -z "$GUNICORN_PATH" ]; then
+  echo "❌ gunicorn not found, installing..."
+  pip install gunicorn
+  GUNICORN_PATH=$(find /opt/render/project/src -type f -name gunicorn | head -n 1)
+fi
+
+echo "✅ Using gunicorn from: $GUNICORN_PATH"
+exec $GUNICORN_PATH --workers=2 --bind 0.0.0.0:$PORT app:app
