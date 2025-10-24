@@ -1,0 +1,26 @@
+body {
+  font-family: Arial, sans-serif;
+  background: #f3f3f3;
+  display: flex;
+  justify-content: center;
+}
+.container {
+  margin-top: 50px;
+  padding: 30px;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 0 5px #aaa;
+  width: 350px;
+}
+input, button {
+  width: 100%;
+  margin: 5px 0;
+  padding: 8px;
+}
+button {
+  background-color: #0066ff;
+  color: white;
+  border: none;
+  border-radius: 5px;
+}
+.alert { color: red; }

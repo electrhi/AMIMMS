@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>인수증 결과</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex justify-center items-center min-h-screen">
+
+<div class="bg-white p-6 rounded-2xl shadow-lg text-center w-full max-w-3xl">
+  <h2 class="text-2xl font-bold text-blue-700 mb-4">✅ 인수증이 생성되었습니다!</h2>
+
+  <!-- 인수증 미리보기 이미지 -->
+  <img src="{{ url_for('static', filename=receipt_path.split('static/')[-1]) }}" 
+       alt="인수증 이미지"
+       class="border rounded-lg mx-auto mb-6 shadow-md">
+
+  <!-- 버튼 영역 -->
+  <div class="flex justify-center gap-4 mt-6 flex-wrap">
+    <!-- 새 인수증 작성 -->
+    <a href="{{ url_for('form_page', new=1) }}" 
+       class="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition">
+       📝 새 인수증 작성
+    </a>
+
+    <!-- 인수증 저장 -->
+    <a href="{{ url_for('download_receipt') }}" 
+       class="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition">
+       📥 인수증 저장
+    </a>
+
+    <!-- 첫화면 이동 -->
+    <a href="{{ url_for('menu') }}" 
+       class="bg-gray-600 text-white px-5 py-2 rounded-lg hover:bg-gray-700 transition">
+       🏠 첫화면
+    </a>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>자재 인수증 확인</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  .signature-pad {
+    border: 2px solid #ccc;
+    border-radius: 8px;
+    width: 100%;
+    height: 200px;
+    background-color: white;
+    touch-action: none;
+  }
+</style>
+</head>
+<body class="bg-gray-100 p-6">
+
+<div class="max-w-3xl mx-auto bg-white rounded-2xl shadow-lg p-8">
+  <h2 class="text-2xl font-bold text-center text-blue-700 mb-6">📋 자재 인수증 확인</h2>
+
+  <!-- ✅ 자재 목록 -->
+  <table class="w-full border border-gray-300 mb-6 text-center">
+    <thead class="bg-blue-100 text-gray-700">
+      <tr>
+        <th class="p-2 border">통신방식</th>
+        <th class="p-2 border">구분</th>
+        <th class="p-2 border">신/철</th>
+        <th class="p-2 border">수량</th>
+        <th class="p-2 border">박스번호</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in materials %}
+      <tr>
+        <td class="border p-2">{{ m.통신방식 }}</td>
+        <td class="border p-2">{{ m.구분 }}</td>
+        <td class="border p-2">{{ m.신철 }}</td>
+        <td class="border p-2">{{ m.수량 }}</td>
+        <td class="border p-2">{{ m.박스번호 }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <form method="POST" onsubmit="return validateForm();">
+
+    <!-- ✅ 주는 사람 -->
+    <div class="mb-8">
+      <label class="block mb-1 font-semibold text-gray-700">주는 사람</label>
+      <input type="text" name="giver" id="giver" placeholder="주는 사람 이름 입력"
+             class="w-full border rounded-md p-2 focus:ring focus:ring-blue-200 mb-3" required>
+
+      <p class="font-semibold mb-2 text-gray-700">주는 사람 서명</p>
+      <canvas id="giver-signature" class="signature-pad"></canvas>
+      <button type="button" onclick="clearSignature('giver-signature')" class="mt-2 text-sm text-red-600">서명 지우기</button>
+      <input type="hidden" name="giver_sign" id="giver_sign">
+    </div>
+
+    <!-- ✅ 받는 사람 -->
+    <div class="mb-8">
+      <label class="block mb-1 font-semibold text-gray-700">받는 사람</label>
+      <input type="text" name="receiver" id="receiver" value="{{ logged_user }}" readonly
+             class="w-full border rounded-md p-2 bg-gray-100 cursor-not-allowed mb-3">
+
+      <p class="font-semibold mb-2 text-gray-700">받는 사람 서명</p>
+      <canvas id="receiver-signature" class="signature-pad"></canvas>
+      <button type="button" onclick="clearSignature('receiver-signature')" class="mt-2 text-sm text-red-600">서명 지우기</button>
+      <input type="hidden" name="receiver_sign" id="receiver_sign">
+    </div>
+
+    <div class="flex justify-center gap-4 mt-8">
+      <a href="{{ url_for('form_page', new=1) }}" 
+         class="bg-gray-500 text-white px-5 py-2 rounded-lg hover:bg-gray-600">⬅ 새 인수증 작성</a>
+      <button type="submit" class="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700">인수증 생성</button>
+    </div>
+  </form>
+</div>
+
+<script>
+  // ✅ 공통 서명 초기화
+  function setupSignature(canvasId) {
+    const canvas = document.getElementById(canvasId);
+    const ctx = canvas.getContext("2d");
+    let drawing = false;
+
+    function getPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.touches ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
+      const y = e.touches ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
+      return { x, y };
+    }
+
+    function start(e) {
+      drawing = true;
+      const pos = getPos(e);
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+    }
+
+    function draw(e) {
+      if (!drawing) return;
+      e.preventDefault();
+      const pos = getPos(e);
+      ctx.lineWidth = 2;
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "black";
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+    }
+
+    function end() {
+      drawing = false;
+    }
+
+    canvas.addEventListener("mousedown", start);
+    canvas.addEventListener("mousemove", draw);
+    canvas.addEventListener("mouseup", end);
+    canvas.addEventListener("mouseleave", end);
+    canvas.addEventListener("touchstart", start);
+    canvas.addEventListener("touchmove", draw);
+    canvas.addEventListener("touchend", end);
+
+    return { canvas, ctx };
+  }
+
+  const giver = setupSignature("giver-signature");
+  const receiver = setupSignature("receiver-signature");
+
+  // ✅ 서명 지우기
+  function clearSignature(id) {
+    const canvas = document.getElementById(id);
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  // ✅ 서명 비어있는지 검사
+  function isCanvasBlank(canvas) {
+    const pixelBuffer = new Uint32Array(
+      canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data.buffer
+    );
+    return !pixelBuffer.some(color => color !== 0);
+  }
+
+  // ✅ 제출 전 검사
+  function validateForm() {
+    const giverSign = document.getElementById("giver-signature");
+    const receiverSign = document.getElementById("receiver-signature");
+
+    if (isCanvasBlank(giverSign)) {
+      alert("주는 사람 서명을 입력해주세요.");
+      return false;
+    }
+
+    if (isCanvasBlank(receiverSign)) {
+      alert("받는 사람 서명을 입력해주세요.");
+      return false;
+    }
+
+    document.getElementById("giver_sign").value = giverSign.toDataURL();
+    document.getElementById("receiver_sign").value = receiverSign.toDataURL();
+    return true;
+  }
+</script>
+
+</body>
+</html>

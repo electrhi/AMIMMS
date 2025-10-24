@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>누적 자재 현황</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex justify-center items-center min-h-screen">
+  <div class="bg-white p-6 rounded-2xl shadow-lg text-center w-full max-w-3xl">
+    <h2 class="text-2xl font-bold text-blue-700 mb-4">📦 누적 자재 현황</h2>
+
+    {% if summary_data %}
+    <table class="w-full border border-gray-300 mt-4 text-center">
+      <thead class="bg-blue-100">
+        <tr>
+          <th class="border p-2">통신방식</th>
+          <th class="border p-2">구분</th>
+          <th class="border p-2">총 수량</th>
+          <th class="border p-2">박스 수</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in summary_data %}
+        <tr class="hover:bg-gray-50">
+          <td class="border p-2">{{ item.통신방식 }}</td>
+          <td class="border p-2">{{ item.구분 }}</td>
+          <td class="border p-2">{{ item.합계 }}</td>
+          <td class="border p-2">{{ item.박스수 }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <p class="text-gray-500 mt-6">{{ message or "등록된 자재 데이터가 없습니다." }}</p>
+    {% endif %}
+
+    <a href="{{ url_for('menu') }}" class="inline-block mt-6 bg-gray-600 text-white px-5 py-2 rounded-lg hover:bg-gray-700">
+      ⬅ 메뉴로 돌아가기
+    </a>
+  </div>
+</body>
+</html>

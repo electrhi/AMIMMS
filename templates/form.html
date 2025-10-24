@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>자재 인수증 입력</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-4">
+
+<div class="max-w-4xl mx-auto bg-white p-6 rounded-2xl shadow-md">
+  <h2 class="text-2xl font-bold text-blue-600 mb-4">📦 자재 인수증 (다중 입력)</h2>
+
+  <form method="POST" id="materialForm">
+    <div class="overflow-x-auto">
+      <table id="materialTable" class="min-w-full border-separate border-spacing-x-0.5 text-center text-sm">
+        <thead>
+          <tr class="bg-blue-100 text-gray-800">
+            <th class="px-2 py-2">통신방식</th>
+            <th class="px-2 py-2">구분</th>
+            <th class="px-2 py-2">신/철</th>
+            <th class="px-2 py-2">수량</th>
+            <th class="px-2 py-2">박스번호</th>
+            <th class="px-3 py-2 w-14">삭제</th>
+          </tr>
+        </thead>
+        <tbody id="materialTableBody">
+          {% if materials %}
+            {% for m in materials %}
+            <tr class="border-b">
+              <td><select name="통신방식" class="border p-1 rounded-md">
+                <option selected>{{ m['통신방식'] }}</option>
+                <option>KS-PLC</option><option>HPGP</option><option>IoT-PLC</option><option>LTE</option>
+              </select></td>
+
+              <td><select name="구분" class="border p-1 rounded-md">
+                <option selected>{{ m['구분'] }}</option>
+                <option>Adv-E</option><option>G-Type</option><option>E-Type</option><option>표준형</option><option>AMIGO</option>
+              </select></td>
+
+              <td><select name="신철" class="border p-1 rounded-md">
+                <option selected>{{ m['신철'] }}</option>
+                <option>신</option><option>철</option>
+              </select></td>
+
+              <td><input name="수량" type="number" value="{{ m['수량'] }}" class="border w-20 p-1 text-center rounded-md" oninput="updateSummary()"></td>
+              <td><input name="박스번호" type="number" value="{{ m['박스번호'] }}" class="border w-28 p-1 text-center rounded-md" oninput="updateSummary()"></td>
+
+              <td class="flex justify-center items-center px-3 py-2">
+                <button type="button" onclick="this.closest('tr').remove(); updateSummary();" class="text-red-500 text-xl hover:scale-125 transition">✕</button>
+              </td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr class="border-b">
+              <td><select name="통신방식" class="border p-1 rounded-md">
+                <option>KS-PLC</option><option>HPGP</option><option>IoT-PLC</option><option>LTE</option>
+              </select></td>
+              <td><select name="구분" class="border p-1 rounded-md">
+                <option>Adv-E</option><option>G-Type</option><option>E-Type</option><option>표준형</option><option>AMIGO</option>
+              </select></td>
+              <td><select name="신철" class="border p-1 rounded-md">
+                <option>신</option><option>철</option>
+              </select></td>
+              <td><input name="수량" type="number" class="border w-20 p-1 text-center rounded-md" oninput="updateSummary()"></td>
+              <td><input name="박스번호" type="number" class="border w-28 p-1 text-center rounded-md" oninput="updateSummary()"></td>
+              <td class="flex justify-center items-center px-3 py-2">
+                <button type="button" onclick="this.closest('tr').remove(); updateSummary();" class="text-red-500 text-xl hover:scale-125 transition">✕</button>
+              </td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ✅ 합계 표 (분리된 형태) -->
+    <div class="mt-5 border-t pt-4">
+      <h3 class="text-lg font-bold text-gray-800 mb-2">📊 자재 합계 요약</h3>
+      <div class="overflow-x-auto">
+        <table id="summaryTable" class="min-w-full border border-gray-300 rounded-lg text-center text-sm">
+          <thead class="bg-gray-100">
+            <tr>
+              <th class="px-2 py-2 border">통신방식</th>
+              <th class="px-2 py-2 border">구분</th>
+              <th class="px-2 py-2 border">수량합계</th>
+              <th class="px-2 py-2 border">박스수량</th>
+            </tr>
+          </thead>
+          <tbody id="summaryBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ✅ 버튼 영역 -->
+    <div class="flex justify-between items-center mt-6">
+      <button type="button" onclick="addRow()" class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600">
+        + 행 추가
+      </button>
+      <div class="flex gap-3">
+        <!-- ⬅ 이전 버튼 추가 -->
+        <a href="{{ url_for('menu') }}" class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600">
+          ⬅ 이전
+        </a>
+        <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">
+          다음
+        </button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<script>
+function addRow(){
+  const tbody=document.getElementById('materialTableBody');
+  const tr=document.createElement('tr');
+  tr.classList.add("border-b");
+  tr.innerHTML=`
+    <td><select name="통신방식" class="border p-1 rounded-md">
+      <option>KS-PLC</option><option>HPGP</option><option>IoT-PLC</option><option>LTE</option>
+    </select></td>
+    <td><select name="구분" class="border p-1 rounded-md">
+      <option>Adv-E</option><option>G-Type</option><option>E-Type</option><option>표준형</option><option>AMIGO</option>
+    </select></td>
+    <td><select name="신철" class="border p-1 rounded-md">
+      <option>신</option><option>철</option>
+    </select></td>
+    <td><input name="수량" type="number" class="border w-20 p-1 text-center rounded-md" oninput="updateSummary()"></td>
+    <td><input name="박스번호" type="number" class="border w-28 p-1 text-center rounded-md" oninput="updateSummary()"></td>
+    <td class="flex justify-center items-center px-3 py-2">
+      <button type="button" onclick="this.closest('tr').remove(); updateSummary();" class="text-red-500 text-xl hover:scale-125 transition">✕</button>
+    </td>`;
+  tbody.appendChild(tr);
+  updateSummary();
+}
+
+function updateSummary(){
+  const rows = document.querySelectorAll("#materialTableBody tr");
+  const summary = {};
+  
+  rows.forEach(row => {
+    const t = row.querySelector('select[name="통신방식"]').value;
+    const g = row.querySelector('select[name="구분"]').value;
+    const q = parseInt(row.querySelector('input[name="수량"]').value) || 0;
+    const b = row.querySelector('input[name="박스번호"]').value.trim();
+
+    if (!t || !g) return;
+    const key = `${t}|${g}`;
+    if (!summary[key]) summary[key] = { totalQty: 0, boxes: new Set() };
+    summary[key].totalQty += q;
+    if (b) summary[key].boxes.add(b);
+  });
+
+  const tbody = document.getElementById("summaryBody");
+  tbody.innerHTML = "";
+
+  Object.entries(summary).forEach(([key, data]) => {
+    const [t, g] = key.split("|");
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td class="border px-2 py-1">${t}</td>
+      <td class="border px-2 py-1">${g}</td>
+      <td class="border px-2 py-1 text-blue-700 font-bold">${data.totalQty}</td>
+      <td class="border px-2 py-1 text-gray-800">${data.boxes.size}</td>
+    `;
+    tbody.appendChild(row);
+  });
+}
+updateSummary();
+</script>
+
+</body>
+</html>
