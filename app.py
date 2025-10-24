@@ -5,6 +5,7 @@ from io import BytesIO
 import base64, os, qrcode, socket, gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
+import json
 
 # ---------------------- Flask 초기화 ----------------------
 app = Flask(__name__)
@@ -12,8 +13,9 @@ app.secret_key = "kdn_secret_key"
 
 # ---------------------- Google Sheets 연결 ----------------------
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-CREDS = Credentials.from_service_account_file(
-    "credentials.json", scopes=SCOPES
+# Render 환경변수에서 credentials.json 읽기
+CREDS = Credentials.from_service_account_info(
+    json.loads(os.getenv("GOOGLE_CREDENTIALS_JSON")), scopes=SCOPES
 )
 gc = gspread.authorize(CREDS)
 
@@ -160,3 +162,4 @@ def save_to_sheets(materials, giver, receiver):
 # ---------------------- 서버 실행 ----------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
