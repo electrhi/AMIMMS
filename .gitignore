@@ -208,3 +208,5 @@ __marimo__/
 
 # Ignore data and cache
 static/data/*.xlsx
+
+credentials.json
