@@ -1,11 +1,18 @@
 from flask import Flask, render_template, request, redirect, url_for, session, send_file
-from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime
 from io import BytesIO
 import base64, os, qrcode, socket, gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
 import json
+
+try:
+    from PIL import Image, ImageDraw, ImageFont
+except ImportError:
+    import pip
+    pip.main(['install', 'Pillow'])
+    from PIL import Image, ImageDraw, ImageFont
+
 
 # ---------------------- Flask 초기화 ----------------------
 app = Flask(__name__)
@@ -162,4 +169,5 @@ def save_to_sheets(materials, giver, receiver):
 # ---------------------- 서버 실행 ----------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
