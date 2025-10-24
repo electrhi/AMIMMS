@@ -173,6 +173,12 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     img.save(filename, "JPEG", quality=95)
     return filename
+# ---------------------- 로그아웃 ----------------------
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
 
 
 # ---------------------- 구글시트 저장 ----------------------
@@ -189,11 +195,5 @@ def save_to_sheets(materials, giver, receiver):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
-
-
-@app.route("/logout")
-def logout():
-    session.clear()
-    return redirect(url_for("login"))
 
 
