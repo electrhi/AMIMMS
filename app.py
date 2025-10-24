@@ -6,11 +6,12 @@ from google.oauth2.service_account import Credentials
 import pandas as pd
 import json
 
+# ✅ Pillow Import 안정화 (Render + Python 3.13 대응)
 try:
     from PIL import Image, ImageDraw, ImageFont
 except ImportError:
-    import pip
-    pip.main(['install', 'Pillow'])
+    import subprocess
+    subprocess.run(["pip", "install", "--no-cache-dir", "--upgrade", "Pillow==11.0.0"])
     from PIL import Image, ImageDraw, ImageFont
 
 
@@ -20,6 +21,7 @@ app.secret_key = "kdn_secret_key"
 
 # ---------------------- Google Sheets 연결 ----------------------
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+
 # Render 환경변수에서 credentials.json 읽기
 CREDS = Credentials.from_service_account_info(
     json.loads(os.getenv("GOOGLE_CREDENTIALS_JSON")), scopes=SCOPES
@@ -32,6 +34,7 @@ RECORDS_SHEET_KEY = os.getenv("GOOGLE_RECORDS_SHEET_KEY")
 
 users_sheet = gc.open_by_key(USERS_SHEET_KEY).sheet1
 records_sheet = gc.open_by_key(RECORDS_SHEET_KEY).sheet1
+
 
 # ---------------------- 로그인 ----------------------
 @app.route("/", methods=["GET", "POST"])
@@ -49,17 +52,22 @@ def login():
         return render_template("login.html", error="로그인 정보가 올바르지 않습니다.")
     return render_template("login.html")
 
+
 # ---------------------- 메뉴 ----------------------
 @app.route("/menu")
 def menu():
-    if not session.get("logged_in"): return redirect(url_for("login"))
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
     return render_template("menu.html", user_id=session["user_id"])
+
 
 # ---------------------- 자재 입력 ----------------------
 @app.route("/form", methods=["GET", "POST"])
 def form_page():
-    if not session.get("logged_in"): return redirect(url_for("login"))
-    if request.args.get("new") == "1": session.pop("materials", None)
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
+    if request.args.get("new") == "1":
+        session.pop("materials", None)
 
     if request.method == "POST":
         materials = []
@@ -75,10 +83,12 @@ def form_page():
         return redirect(url_for("confirm"))
     return render_template("form.html", materials=session.get("materials", []))
 
+
 # ---------------------- 확인 ----------------------
 @app.route("/confirm", methods=["GET", "POST"])
 def confirm():
-    if not session.get("logged_in"): return redirect(url_for("login"))
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
     materials = session.get("materials", [])
     logged_user = session.get("user_id")
 
@@ -96,10 +106,12 @@ def confirm():
         return render_template("receipt_result.html", receipt_path=receipt_path)
     return render_template("confirm.html", materials=materials, logged_user=logged_user)
 
+
 # ---------------------- 누적 현황 ----------------------
 @app.route("/summary")
 def summary():
-    if not session.get("logged_in"): return redirect(url_for("login"))
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
     user_id = session["user_id"]
     df = pd.DataFrame(records_sheet.get_all_records())
 
@@ -111,6 +123,7 @@ def summary():
     summary.rename(columns={"수량": "합계", "박스번호": "박스수"}, inplace=True)
     summary.sort_values(["통신방식", "구분"], inplace=True)
     return render_template("summary.html", summary_data=summary.to_dict("records"))
+
 
 # ---------------------- 인수증 생성 ----------------------
 def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
@@ -127,15 +140,16 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     draw.text((100, 200), f"작성일자: {datetime.now().strftime('%Y-%m-%d %H:%M')}", font=bold_font, fill="black")
 
     y = 300
-    headers = ["통신방식", "구분", "신/철", "수량", "박스번호"]
+    headers = ["통신방식", "구분", "신철", "수량", "박스번호"]
     positions = [100, 400, 600, 800, 1000]
     draw.rectangle((80, y, 1160, y+55), outline="black", fill="#E8F0FE")
-    for i, h in enumerate(headers): draw.text((positions[i], y+10), h, font=bold_font, fill="black")
+    for i, h in enumerate(headers):
+        draw.text((positions[i], y+10), h, font=bold_font, fill="black")
 
     y += 70
     for m in materials:
         for i, key in enumerate(headers):
-            val = m[key] if key in m else ""
+            val = m.get(key, "")
             draw.text((positions[i], y), str(val), font=bold_font, fill="black")
         y += 50
 
@@ -143,19 +157,23 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
 
     def decode_sign(s):
         s = s.split(",")[1] if "," in s else None
-        if not s: return None
+        if not s:
+            return None
         return Image.open(BytesIO(base64.b64decode(s))).convert("RGBA")
 
     giver_img, receiver_img = decode_sign(giver_sign), decode_sign(receiver_sign)
     footer_y = height - 150
     draw.text((200, footer_y-40), f"주는 사람: {giver} (인)", font=bold_font, fill="black")
     draw.text((800, footer_y-40), f"받는 사람: {receiver} (인)", font=bold_font, fill="black")
-    if giver_img: img.paste(giver_img.resize((260, 120)), (240, footer_y-190), giver_img)
-    if receiver_img: img.paste(receiver_img.resize((260, 120)), (840, footer_y-190), receiver_img)
+    if giver_img:
+        img.paste(giver_img.resize((260, 120)), (240, footer_y-190), giver_img)
+    if receiver_img:
+        img.paste(receiver_img.resize((260, 120)), (840, footer_y-190), receiver_img)
     filename = f"static/receipts/receipt_{receiver}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     img.save(filename, "JPEG", quality=95)
     return filename
+
 
 # ---------------------- 구글시트 저장 ----------------------
 def save_to_sheets(materials, giver, receiver):
@@ -166,8 +184,8 @@ def save_to_sheets(materials, giver, receiver):
             m["신철"], m["수량"], m["박스번호"], now
         ])
 
+
 # ---------------------- 서버 실행 ----------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
-
-
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
