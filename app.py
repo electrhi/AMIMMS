@@ -13,6 +13,9 @@ except ImportError:
     import subprocess
     subprocess.run(["pip", "install", "--no-cache-dir", "--upgrade", "Pillow==11.0.0"])
     from PIL import Image, ImageDraw, ImageFont
+    
+import requests
+requests.adapters.DEFAULT_RETRIES = 5  # SSL 일시 끊김 대비 자동 재시도
 
 
 # ---------------------- Flask 초기화 ----------------------
@@ -195,5 +198,6 @@ def save_to_sheets(materials, giver, receiver):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
