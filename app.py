@@ -130,6 +130,11 @@ def summary():
 
 # ---------------------- 인수증 생성 ----------------------
 def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
+    from PIL import Image, ImageDraw, ImageFont
+    from io import BytesIO
+    import base64, os
+    from datetime import datetime
+
     width, height = 1240, 1754
     img = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(img)
@@ -158,24 +163,45 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
 
     draw.rectangle((80, 300, 1160, y), outline="black")
 
+    # ---------------------- ✅ 서명 이미지 처리 개선 ----------------------
     def decode_sign(s):
-        s = s.split(",")[1] if "," in s else None
-        if not s:
+        """Base64 → RGBA 이미지 변환"""
+        try:
+            s = s.split(",")[1] if "," in s else s
+            if not s:
+                return None
+            img = Image.open(BytesIO(base64.b64decode(s)))
+            return img.convert("RGBA")  # 항상 RGBA 모드로 통일
+        except Exception:
             return None
-        return Image.open(BytesIO(base64.b64decode(s))).convert("RGBA")
 
-    giver_img, receiver_img = decode_sign(giver_sign), decode_sign(receiver_sign)
+    giver_img = decode_sign(giver_sign)
+    receiver_img = decode_sign(receiver_sign)
+
     footer_y = height - 150
-    draw.text((200, footer_y-40), f"주는 사람: {giver} (인)", font=bold_font, fill="black")
-    draw.text((800, footer_y-40), f"받는 사람: {receiver} (인)", font=bold_font, fill="black")
+    draw.text((200, footer_y - 40), f"주는 사람: {giver} (인)", font=bold_font, fill="black")
+    draw.text((800, footer_y - 40), f"받는 사람: {receiver} (인)", font=bold_font, fill="black")
+
+    # ---------------------- ✅ RGBA 안전 병합 로직 ----------------------
     if giver_img:
-        img.paste(giver_img.resize((260, 120)), (240, footer_y-190), giver_img)
+        giver_resized = giver_img.resize((260, 120))
+        temp_giver = Image.new("RGBA", img.size, (255, 255, 255, 0))
+        temp_giver.paste(giver_resized, (240, footer_y - 190), giver_resized)
+        img = Image.alpha_composite(img.convert("RGBA"), temp_giver)
+
     if receiver_img:
-        img.paste(receiver_img.resize((260, 120)), (840, footer_y-190), receiver_img)
+        receiver_resized = receiver_img.resize((260, 120))
+        temp_receiver = Image.new("RGBA", img.size, (255, 255, 255, 0))
+        temp_receiver.paste(receiver_resized, (840, footer_y - 190), receiver_resized)
+        img = Image.alpha_composite(img.convert("RGBA"), temp_receiver)
+
+    # ---------------------- 파일 저장 ----------------------
     filename = f"static/receipts/receipt_{receiver}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
     os.makedirs(os.path.dirname(filename), exist_ok=True)
+    img = img.convert("RGB")  # JPG 저장용 RGB 변환
     img.save(filename, "JPEG", quality=95)
     return filename
+
 # ---------------------- 로그아웃 ----------------------
 @app.route("/logout")
 def logout():
@@ -198,6 +224,7 @@ def save_to_sheets(materials, giver, receiver):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
