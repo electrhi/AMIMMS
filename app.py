@@ -5,6 +5,9 @@ import base64, os, qrcode, socket, gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
 import json
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
+
 
 # ✅ Pillow Import 안정화 (Render + Python 3.13 대응)
 try:
@@ -127,6 +130,44 @@ def summary():
     summary.sort_values(["통신방식", "구분"], inplace=True)
     return render_template("summary.html", summary_data=summary.to_dict("records"))
 
+# ---------------------- Google Drive 업로드 함수 ----------------------
+def upload_to_drive(file_path, file_name, folder_id):
+    """
+    생성된 이미지 파일을 Google Drive 지정 폴더에 업로드하고
+    공개 공유 링크(URL)를 반환합니다.
+    """
+    try:
+        creds = Credentials.from_service_account_info(
+            json.loads(os.environ["GOOGLE_CREDENTIALS_JSON"])
+        )
+        service = build("drive", "v3", credentials=creds)
+
+        # 🔹 업로드할 메타데이터
+        file_metadata = {
+            "name": file_name,
+            "parents": [folder_id]
+        }
+        media = MediaFileUpload(file_path, mimetype="image/jpeg")
+
+        # 🔹 파일 업로드
+        uploaded = service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields="id"
+        ).execute()
+
+        # 🔹 모든 사용자가 열람 가능하도록 권한 부여
+        service.permissions().create(
+            fileId=uploaded["id"],
+            body={"type": "anyone", "role": "reader"}
+        ).execute()
+
+        # 🔹 공유 링크 반환
+        return f"https://drive.google.com/file/d/{uploaded['id']}/view?usp=sharing"
+
+    except Exception as e:
+        print(f"❌ Google Drive 업로드 실패: {e}")
+        return None
 
 # ---------------------- 인수증 생성 ----------------------
 def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
@@ -150,9 +191,10 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     y = 300
     headers = ["통신방식", "구분", "신철", "수량", "박스번호"]
     positions = [100, 400, 600, 800, 1000]
-    draw.rectangle((80, y, 1160, y+55), outline="black", fill="#E8F0FE")
+    draw.rectangle((80, y, 1160, y + 55), outline="black", fill="#E8F0FE")
+
     for i, h in enumerate(headers):
-        draw.text((positions[i], y+10), h, font=bold_font, fill="black")
+        draw.text((positions[i], y + 10), h, font=bold_font, fill="black")
 
     y += 70
     for m in materials:
@@ -163,7 +205,7 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
 
     draw.rectangle((80, 300, 1160, y), outline="black")
 
-    # ---------------------- ✅ 서명 이미지 처리 개선 ----------------------
+    # ---------------------- ✅ 서명 이미지 처리 ----------------------
     def decode_sign(s):
         """Base64 → RGBA 이미지 변환"""
         try:
@@ -171,7 +213,7 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
             if not s:
                 return None
             img = Image.open(BytesIO(base64.b64decode(s)))
-            return img.convert("RGBA")  # 항상 RGBA 모드로 통일
+            return img.convert("RGBA")  # RGBA 모드로 통일
         except Exception:
             return None
 
@@ -182,7 +224,7 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     draw.text((200, footer_y - 40), f"주는 사람: {giver} (인)", font=bold_font, fill="black")
     draw.text((800, footer_y - 40), f"받는 사람: {receiver} (인)", font=bold_font, fill="black")
 
-    # ---------------------- ✅ RGBA 안전 병합 로직 ----------------------
+    # ---------------------- ✅ RGBA 병합 ----------------------
     if giver_img:
         giver_resized = giver_img.resize((260, 120))
         temp_giver = Image.new("RGBA", img.size, (255, 255, 255, 0))
@@ -195,12 +237,20 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
         temp_receiver.paste(receiver_resized, (840, footer_y - 190), receiver_resized)
         img = Image.alpha_composite(img.convert("RGBA"), temp_receiver)
 
-    # ---------------------- 파일 저장 ----------------------
-    filename = f"static/receipts/receipt_{receiver}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
-    os.makedirs(os.path.dirname(filename), exist_ok=True)
-    img = img.convert("RGB")  # JPG 저장용 RGB 변환
-    img.save(filename, "JPEG", quality=95)
-    return filename
+    # ---------------------- ✅ Google Drive 업로드 ----------------------
+    tmp_filename = f"/tmp/receipt_{receiver}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+    img = img.convert("RGB")
+    img.save(tmp_filename, "JPEG", quality=95)
+
+    # 🔹 Google Drive 폴더 ID (직접 입력)
+    DRIVE_FOLDER_ID = "1pTwc4KQ4FylM-7vG8cYGOICNUzOHbj9N"  # 예: '1a2B3C4D5E6F7G8H9'
+
+    # 🔹 업로드 실행
+    drive_link = upload_to_drive(tmp_filename, os.path.basename(tmp_filename), DRIVE_FOLDER_ID)
+
+    # ---------------------- ✅ 링크 반환 ----------------------
+    return drive_link or "구글 드라이브 업로드 실패"
+
 
 # ---------------------- 로그아웃 ----------------------
 @app.route("/logout")
@@ -224,6 +274,7 @@ def save_to_sheets(materials, giver, receiver):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
