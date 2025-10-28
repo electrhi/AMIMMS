@@ -148,9 +148,8 @@ def upload_to_gcs(file_path, file_name, bucket_name):
         blob = bucket.blob(file_name)
 
         blob.upload_from_filename(file_path, content_type="image/jpeg")
-        blob.make_public()
-
-        return blob.public_url
+        url = blob.generate_signed_url(expiration=3600 * 24 * 365, method="GET")
+    return url
     except Exception as e:
         print(f"❌ GCS 업로드 실패: {e}")
         return None
@@ -262,4 +261,5 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
