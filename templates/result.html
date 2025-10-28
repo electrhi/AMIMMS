@@ -3,31 +3,39 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>인수증 생성 완료</title>
+  <title>자재 인수증 결과</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
 
-<div class="bg-white shadow-lg rounded-2xl p-8 w-full max-w-md text-center">
-  <h2 class="text-2xl font-bold text-blue-700 mb-6 flex items-center justify-center gap-2">
-    ✅ 인수증이 생성되었습니다!
-  </h2>
+  <div class="bg-white shadow-xl rounded-2xl p-8 w-full max-w-2xl text-center">
+    <h2 class="text-2xl font-bold text-blue-700 mb-6">📄 자재 인수증 생성 완료</h2>
 
-  <div class="border rounded-lg overflow-hidden shadow-sm mb-6">
-    <img src="{{ url_for('static', filename=receipt_path.split('static/')[-1]) }}" alt="인수증 미리보기" class="w-full">
-  </div>
+    <!-- ✅ 인수증 이미지 미리보기 -->
+    {% if receipt_path %}
+      <div class="border rounded-lg overflow-hidden shadow mb-6">
+        <img src="{{ url_for('static', filename=receipt_path.split('static/')[-1]) }}"
+             alt="인수증 미리보기"
+             class="w-full object-contain">
+      </div>
+    {% else %}
+      <p class="text-gray-500 italic mb-6">⚠️ 인수증 이미지를 불러올 수 없습니다.</p>
+    {% endif %}
 
-  <div class="flex justify-center gap-3">
-    <a href="{{ url_for('form_page') }}" 
-       class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">새 인수증 작성</a>
+    <!-- ✅ 다운로드 링크 -->
+    {% if receipt_link %}
+      <a href="{{ receipt_link }}" download
+         class="block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg mb-4">
+         📥 인수증 다운로드
+      </a>
+    {% endif %}
 
-    <a href="{{ url_for('static', filename=receipt_path.split('static/')[-1]) }}" 
-       download="AMI인수증_{{ receipt_path.split('_')[-1] }}" 
-       class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
-       ⬇ 인수증 저장
+    <!-- ✅ 메뉴로 돌아가기 -->
+    <a href="{{ url_for('menu') }}"
+       class="block bg-gray-500 hover:bg-gray-600 text-white font-semibold py-3 rounded-lg">
+       🏠 메뉴로 돌아가기
     </a>
   </div>
-</div>
 
 </body>
 </html>
