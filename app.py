@@ -4,30 +4,35 @@ import base64
 import requests
 import pandas as pd
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for, session, send_file
+from flask import Flask, render_template, request, redirect, url_for, session
 from google.oauth2.service_account import Credentials
 from google.cloud import storage
 from PIL import Image, ImageDraw, ImageFont
 import json
-import qrcode
 import ssl
 import certifi
-from openpyxl import Workbook
 import gspread
+import urllib3
 
 # =========================================================
 # ✅ SSL 인증 안정화 (Render + Google API)
 # =========================================================
-# - 기존 ssl._create_unverified_context()는 제거
-# - certifi 인증서 기반 안전한 SSL 컨텍스트 구성
+# certifi의 최신 CA 번들을 이용해 HTTPS 통신 안정화
+# urllib3 / requests / gspread 모두 동일하게 적용됨
 # =========================================================
-ssl._create_default_https_context = lambda: ssl.create_default_context(cafile=certifi.where())
 
-# requests 전역 설정
-requests.packages.urllib3.disable_warnings()
-requests.adapters.DEFAULT_RETRIES = 5
-session = requests.Session()
-session.verify = certifi.where()
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+class SSLAdapter(requests.adapters.HTTPAdapter):
+    """requests용 안전한 SSLAdapter"""
+    def init_poolmanager(self, *args, **kwargs):
+        context = ssl.create_default_context(cafile=certifi.where())
+        kwargs['ssl_context'] = context
+        return super().init_poolmanager(*args, **kwargs)
+
+# ✅ requests 전용 세션 (Flask session과 이름 구분)
+http_session = requests.Session()
+http_session.mount("https://", SSLAdapter())
 
 # =========================================================
 # ✅ Flask 초기화
@@ -367,6 +372,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
