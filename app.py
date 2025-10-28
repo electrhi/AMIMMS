@@ -11,10 +11,19 @@ import ssl
 import requests
 import urllib3
 
-# ✅ SSL 관련 오류 방지 (Render 환경용)
+# ---------------------- ✅ SSL 오류 방지 (Render 전용) ----------------------
 ssl._create_default_https_context = ssl._create_unverified_context
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+requests.packages.urllib3.disable_warnings()
 requests.adapters.DEFAULT_RETRIES = 5
+
+# ✅ requests 세션 강제 비검증 설정
+import requests.sessions
+orig_request = requests.sessions.Session.request
+def no_ssl_request(self, *args, **kwargs):
+    kwargs["verify"] = False
+    return orig_request(self, *args, **kwargs)
+requests.sessions.Session.request = no_ssl_request
 
 # ✅ Pillow Import 안정화
 try:
@@ -32,12 +41,8 @@ CREDS = Credentials.from_service_account_info(
     json.loads(os.getenv("GOOGLE_CREDENTIALS_JSON")), scopes=SCOPES
 )
 
-# ✅ SSL 인증 무시한 AuthorizedSession 사용
-from google.auth.transport.requests import AuthorizedSession
-session_auth = AuthorizedSession(CREDS)
-session_auth.verify = False  # SSL 완전 우회
-gc = gspread.Client(auth=session_auth)
-gc.session = session_auth
+# ✅ 표준 authorize (SSL 무시하도록 requests monkey patch 적용됨)
+gc = gspread.authorize(CREDS)
 
 USERS_SHEET_KEY = os.getenv("GOOGLE_USERS_SHEET_KEY")
 RECORDS_SHEET_KEY = os.getenv("GOOGLE_RECORDS_SHEET_KEY")
@@ -57,7 +62,6 @@ def login():
         if user_id in users and users[user_id] == pw:
             session["logged_in"] = True
             session["user_id"] = user_id
-            # 권한 추가
             user_row = df[df["ID"] == user_id]
             session["authority"] = user_row.iloc[0]["AUTHORITY"] if not user_row.empty else "n"
             return redirect(url_for("menu"))
@@ -107,10 +111,7 @@ def confirm():
         giver_sign = request.form["giver_sign"]
         receiver_sign = request.form["receiver_sign"]
 
-        # ✅ 인수증 생성 및 GCS 업로드
         receipt_link = generate_receipt(materials, giver, receiver, giver_sign, receiver_sign)
-
-        # ✅ 시트에 저장
         save_to_sheets(materials, giver, receiver)
 
         session["last_receipt"] = receipt_link
@@ -142,18 +143,15 @@ def admin_summary():
         return redirect(url_for("login"))
     user_id = session["user_id"]
 
-    # ✅ 관리자 권한 확인
     df_users = pd.DataFrame(users_sheet.get_all_records())
     user_row = df_users[df_users["ID"] == user_id]
     if user_row.empty or user_row.iloc[0].get("AUTHORITY") != "y":
         return render_template("no_permission.html")
 
-    # ✅ Records 불러오기
     df = pd.DataFrame(records_sheet.get_all_records())
     if df.empty:
-        return render_template("admin_summary.html", summary_table=None, message="등록된 데이터가 없습니다.")
+        return render_template("admin_summary.html", table_html=None, message="등록된 데이터가 없습니다.")
 
-    # ✅ pivot 형태로 요약
     pivot = df.pivot_table(
         index="주는사람",
         columns=["받는사람", "구분"],
@@ -168,23 +166,18 @@ def admin_summary():
     html_table = pivot.to_html(classes="min-w-full border-collapse border text-center bg-white shadow rounded-lg", justify="center")
     return render_template("admin_summary.html", table_html=html_table, user_id=user_id)
 
-# ---------------------- ✅ GCS 업로드 함수 ----------------------
+# ---------------------- GCS 업로드 ----------------------
 def upload_to_gcs(file_path, file_name, bucket_name):
-    """GCS 버킷에 파일 업로드 후 signed URL 반환"""
-    from google.oauth2 import service_account
-    from google.cloud import storage
-    import json
-
     try:
+        from google.oauth2 import service_account
+        from google.cloud import storage
         creds = service_account.Credentials.from_service_account_info(
             json.loads(os.environ["GOOGLE_CREDENTIALS_JSON"])
         )
         client = storage.Client(credentials=creds)
         bucket = client.bucket(bucket_name)
         blob = bucket.blob(file_name)
-
         blob.upload_from_filename(file_path, content_type="image/jpeg")
-
         url = blob.generate_signed_url(expiration=timedelta(days=365), method="GET")
         print(f"✅ GCS 업로드 성공: {url}")
         return url
@@ -194,7 +187,6 @@ def upload_to_gcs(file_path, file_name, bucket_name):
 
 # ---------------------- 인수증 생성 ----------------------
 def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
-    """인수증 이미지를 생성하고 GCS에 업로드"""
     width, height = 1240, 1754
     img = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(img)
@@ -254,9 +246,6 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
 
     BUCKET_NAME = os.getenv("GCS_BUCKET_NAME", "amimms-receipts")
     gcs_link = upload_to_gcs(tmp_filename, os.path.basename(tmp_filename), BUCKET_NAME)
-
-    if not gcs_link:
-        print("❌ GCS 업로드 실패 또는 URL 생성 오류")
     return gcs_link
 
 # ---------------------- 시트 저장 ----------------------
