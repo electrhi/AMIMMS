@@ -1,59 +1,55 @@
 from flask import Flask, render_template, request, redirect, url_for, session
 from datetime import datetime, timedelta
 from io import BytesIO
-import base64, os, qrcode, gspread
+import base64, os, json, requests, pandas as pd
+from PIL import Image, ImageDraw, ImageFont
 from google.oauth2.service_account import Credentials
-import pandas as pd
-import json
-from googleapiclient.discovery import build
 from google.cloud import storage
-import ssl
-import requests
-import urllib3
-
-# ---------------------- ✅ SSL 오류 방지 (Render 전용) ----------------------
-ssl._create_default_https_context = ssl._create_unverified_context
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-requests.packages.urllib3.disable_warnings()
-requests.adapters.DEFAULT_RETRIES = 5
-
-# ✅ requests 세션 강제 비검증 설정
-import requests.sessions
-orig_request = requests.sessions.Session.request
-def no_ssl_request(self, *args, **kwargs):
-    kwargs["verify"] = False
-    return orig_request(self, *args, **kwargs)
-requests.sessions.Session.request = no_ssl_request
-
-# ✅ Pillow Import 안정화
-try:
-    from PIL import Image, ImageDraw, ImageFont
-except ImportError:
-    from PIL import Image, ImageDraw, ImageFont
 
 # ---------------------- Flask 초기화 ----------------------
 app = Flask(__name__)
 app.secret_key = "kdn_secret_key"
 
-# ---------------------- Google Sheets 연결 ----------------------
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-CREDS = Credentials.from_service_account_info(
-    json.loads(os.getenv("GOOGLE_CREDENTIALS_JSON")), scopes=SCOPES
-)
-
-# ✅ 표준 authorize (SSL 무시하도록 requests monkey patch 적용됨)
-gc = gspread.authorize(CREDS)
-
+# ---------------------- ✅ 공통 설정 ----------------------
+GOOGLE_CREDENTIALS = json.loads(os.getenv("GOOGLE_CREDENTIALS_JSON", "{}"))
 USERS_SHEET_KEY = os.getenv("GOOGLE_USERS_SHEET_KEY")
 RECORDS_SHEET_KEY = os.getenv("GOOGLE_RECORDS_SHEET_KEY")
+GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME", "amimms-receipts")
 
-users_sheet = gc.open_by_key(USERS_SHEET_KEY).sheet1
-records_sheet = gc.open_by_key(RECORDS_SHEET_KEY).sheet1
+# ---------------------- ✅ Google Sheets 직접 호출 함수 ----------------------
+def get_google_sheet_data(sheet_key, sheet_name):
+    """Google Sheets API 직접 호출 (SSL 문제 우회 완전 대응)"""
+    SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+    creds = Credentials.from_service_account_info(GOOGLE_CREDENTIALS, scopes=SCOPES)
+
+    # 토큰 생성 또는 갱신
+    request_adapter = requests.Request()
+    if not creds.valid:
+        creds.refresh(request_adapter)
+    access_token = creds.token
+
+    url = f"https://sheets.googleapis.com/v4/spreadsheets/{sheet_key}/values/{sheet_name}"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    try:
+        resp = requests.get(url, headers=headers, verify=False, timeout=10)
+        resp.raise_for_status()
+        data = resp.json().get("values", [])
+        if not data or len(data) < 2:
+            return pd.DataFrame()
+        headers = data[0]
+        records = data[1:]
+        return pd.DataFrame(records, columns=headers)
+    except Exception as e:
+        print(f"❌ Google Sheets 데이터 불러오기 실패: {e}")
+        return pd.DataFrame()
 
 # ---------------------- 로그인 ----------------------
 @app.route("/", methods=["GET", "POST"])
 def login():
-    df = pd.DataFrame(users_sheet.get_all_records())
+    df = get_google_sheet_data(USERS_SHEET_KEY, "시트1")
+    if df.empty:
+        return "❌ 사용자 정보를 불러올 수 없습니다. (Google Sheets 연결 실패)"
+
     users = {row["ID"]: row["PASSWORD"] for _, row in df.iterrows()}
 
     if request.method == "POST":
@@ -62,8 +58,7 @@ def login():
         if user_id in users and users[user_id] == pw:
             session["logged_in"] = True
             session["user_id"] = user_id
-            user_row = df[df["ID"] == user_id]
-            session["authority"] = user_row.iloc[0]["AUTHORITY"] if not user_row.empty else "n"
+            session["authority"] = df.loc[df["ID"] == user_id, "AUTHORITY"].values[0] if "AUTHORITY" in df.columns else "n"
             return redirect(url_for("menu"))
         return render_template("login.html", error="로그인 정보가 올바르지 않습니다.")
     return render_template("login.html")
@@ -113,10 +108,10 @@ def confirm():
 
         receipt_link = generate_receipt(materials, giver, receiver, giver_sign, receiver_sign)
         save_to_sheets(materials, giver, receiver)
-
         session["last_receipt"] = receipt_link
         session.pop("materials", None)
         return render_template("receipt_result.html", receipt_url=receipt_link)
+
     return render_template("confirm.html", materials=materials, logged_user=logged_user)
 
 # ---------------------- 누적 현황 ----------------------
@@ -125,7 +120,7 @@ def summary():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
     user_id = session["user_id"]
-    df = pd.DataFrame(records_sheet.get_all_records())
+    df = get_google_sheet_data(RECORDS_SHEET_KEY, "시트1")
 
     if df.empty or user_id not in df["받는사람"].values:
         return render_template("summary.html", summary_data=None, message="등록된 자재 데이터가 없습니다.")
@@ -136,19 +131,17 @@ def summary():
     summary.sort_values(["통신방식", "구분"], inplace=True)
     return render_template("summary.html", summary_data=summary.to_dict("records"))
 
-# ---------------------- ✅ 종합관리표 (관리자 전용) ----------------------
+# ---------------------- ✅ 관리자 종합관리표 ----------------------
 @app.route("/admin_summary")
 def admin_summary():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
     user_id = session["user_id"]
-
-    df_users = pd.DataFrame(users_sheet.get_all_records())
-    user_row = df_users[df_users["ID"] == user_id]
-    if user_row.empty or user_row.iloc[0].get("AUTHORITY") != "y":
+    authority = session.get("authority", "n")
+    if authority != "y":
         return render_template("no_permission.html")
 
-    df = pd.DataFrame(records_sheet.get_all_records())
+    df = get_google_sheet_data(RECORDS_SHEET_KEY, "시트1")
     if df.empty:
         return render_template("admin_summary.html", table_html=None, message="등록된 데이터가 없습니다.")
 
@@ -159,21 +152,16 @@ def admin_summary():
         aggfunc="sum",
         fill_value=0,
     )
-
-    total = pivot.sum(axis=0)
-    pivot.loc["합계"] = total
-
+    pivot.loc["합계"] = pivot.sum(axis=0)
     html_table = pivot.to_html(classes="min-w-full border-collapse border text-center bg-white shadow rounded-lg", justify="center")
+
     return render_template("admin_summary.html", table_html=html_table, user_id=user_id)
 
-# ---------------------- GCS 업로드 ----------------------
+# ---------------------- ✅ 인수증 이미지 생성 및 GCS 업로드 ----------------------
 def upload_to_gcs(file_path, file_name, bucket_name):
+    """GCS 버킷에 파일 업로드 후 signed URL 반환"""
     try:
-        from google.oauth2 import service_account
-        from google.cloud import storage
-        creds = service_account.Credentials.from_service_account_info(
-            json.loads(os.environ["GOOGLE_CREDENTIALS_JSON"])
-        )
+        creds = Credentials.from_service_account_info(GOOGLE_CREDENTIALS)
         client = storage.Client(credentials=creds)
         bucket = client.bucket(bucket_name)
         blob = bucket.blob(file_name)
@@ -185,20 +173,23 @@ def upload_to_gcs(file_path, file_name, bucket_name):
         print(f"❌ GCS 업로드 실패: {e}")
         return None
 
-# ---------------------- 인수증 생성 ----------------------
 def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
+    """인수증 이미지 생성"""
     width, height = 1240, 1754
     img = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(img)
 
     font_path = "AMIMMS/static/fonts/NotoSansKR-Bold.otf"
-    title_font = ImageFont.truetype(font_path, 60)
-    bold_font = ImageFont.truetype(font_path, 34)
+    try:
+        title_font = ImageFont.truetype(font_path, 60)
+        bold_font = ImageFont.truetype(font_path, 34)
+    except OSError:
+        title_font = ImageFont.load_default()
+        bold_font = ImageFont.load_default()
 
     logo_path = "AMIMMS/static/kdn_logo.png"
     if os.path.exists(logo_path):
-        logo = Image.open(logo_path).convert("RGBA")
-        logo = logo.resize((180, 180))
+        logo = Image.open(logo_path).convert("RGBA").resize((180, 180))
         img.paste(logo, (80, 60), logo)
 
     draw.text((480, 100), "자재 인수증", font=title_font, fill="black")
@@ -208,11 +199,10 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     headers = ["통신방식", "구분", "신철", "수량", "박스번호"]
     positions = [100, 400, 600, 800, 1000]
     draw.rectangle((80, y, 1160, y + 55), outline="black", fill="#E8F0FE")
-
     for i, h in enumerate(headers):
         draw.text((positions[i], y + 10), h, font=bold_font, fill="black")
-
     y += 70
+
     for m in materials:
         for i, key in enumerate(headers):
             draw.text((positions[i], y), str(m.get(key, "")), font=bold_font, fill="black")
@@ -243,19 +233,24 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
 
     tmp_filename = f"/tmp/receipt_{receiver}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
     img.save(tmp_filename, "JPEG", quality=95)
+    return upload_to_gcs(tmp_filename, os.path.basename(tmp_filename), GCS_BUCKET_NAME)
 
-    BUCKET_NAME = os.getenv("GCS_BUCKET_NAME", "amimms-receipts")
-    gcs_link = upload_to_gcs(tmp_filename, os.path.basename(tmp_filename), BUCKET_NAME)
-    return gcs_link
-
-# ---------------------- 시트 저장 ----------------------
+# ---------------------- ✅ 시트 저장 ----------------------
 def save_to_sheets(materials, giver, receiver):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    for m in materials:
-        records_sheet.append_row([
-            m["통신방식"], m["구분"], giver, receiver,
-            m["신철"], m["수량"], m["박스번호"], now
-        ])
+    try:
+        SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+        creds = Credentials.from_service_account_info(GOOGLE_CREDENTIALS, scopes=SCOPES)
+        access_token = creds.token or creds.refresh(requests.Request())
+        url = f"https://sheets.googleapis.com/v4/spreadsheets/{RECORDS_SHEET_KEY}/values/시트1:append?valueInputOption=RAW"
+        headers = {"Authorization": f"Bearer {creds.token}", "Content-Type": "application/json"}
+        for m in materials:
+            data = {
+                "values": [[m["통신방식"], m["구분"], giver, receiver, m["신철"], m["수량"], m["박스번호"], now]]
+            }
+            requests.post(url, headers=headers, json=data, verify=False)
+    except Exception as e:
+        print(f"❌ 시트 저장 실패: {e}")
 
 # ---------------------- 로그아웃 ----------------------
 @app.route("/logout")
