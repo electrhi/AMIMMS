@@ -1,35 +1,33 @@
 import os
 import io
 import base64
-import json
-import ssl
-import certifi
 import requests
 import pandas as pd
-from io import BytesIO
-from datetime import datetime, timedelta
-from flask import Flask, render_template, request, redirect, session, url_for, send_file
-from PIL import Image, ImageDraw, ImageFont
+from datetime import datetime
+from flask import Flask, render_template, request, redirect, url_for, session, send_file
 from google.oauth2.service_account import Credentials
 from google.cloud import storage
-import gspread
+from PIL import Image, ImageDraw, ImageFont
+import json
+import qrcode
+import ssl
+import certifi
 from openpyxl import Workbook
+import gspread
 
 # =========================================================
-# ✅ SSL 안정화 (Render 환경용)
+# ✅ SSL 인증 안정화 (Render + Google API)
 # =========================================================
-import requests
-
-# ✅ 안전한 SSL 인증서 컨텍스트 설정
+# - 기존 ssl._create_unverified_context()는 제거
+# - certifi 인증서 기반 안전한 SSL 컨텍스트 구성
+# =========================================================
 ssl._create_default_https_context = lambda: ssl.create_default_context(cafile=certifi.where())
 
-# ✅ requests 기본 세션도 안전하게 설정
+# requests 전역 설정
 requests.packages.urllib3.disable_warnings()
+requests.adapters.DEFAULT_RETRIES = 5
 session = requests.Session()
 session.verify = certifi.where()
-
-# ✅ gspread 등 외부 라이브러리가 requests를 쓸 때 자동으로 인증서 참조됨
-requests.adapters.DEFAULT_RETRIES = 5
 
 # =========================================================
 # ✅ Flask 초기화
@@ -38,18 +36,23 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "kdn_secret_key")
 
 # =========================================================
-# ✅ Google Sheets & GCS 연결 설정
+# ✅ Google Sheets / GCS 연결 설정
 # =========================================================
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-CREDS = Credentials.from_service_account_info(
-    json.loads(os.getenv("GOOGLE_CREDENTIALS_JSON")), scopes=SCOPES
-)
+GOOGLE_CREDENTIALS_JSON = os.getenv("GOOGLE_CREDENTIALS_JSON")
+
+if not GOOGLE_CREDENTIALS_JSON:
+    raise RuntimeError("❌ GOOGLE_CREDENTIALS_JSON 환경 변수가 설정되지 않았습니다.")
+
+CREDS = Credentials.from_service_account_info(json.loads(GOOGLE_CREDENTIALS_JSON), scopes=SCOPES)
 gc = gspread.authorize(CREDS)
 
+# 환경 변수로 시트 키 및 버킷 이름 로드
 USERS_SHEET_KEY = os.getenv("GOOGLE_USERS_SHEET_KEY")
 RECORDS_SHEET_KEY = os.getenv("GOOGLE_RECORDS_SHEET_KEY")
 GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME", "amimms-receipts")
 
+# 구글 시트 객체 초기화
 users_sheet = gc.open_by_key(USERS_SHEET_KEY).sheet1
 records_sheet = gc.open_by_key(RECORDS_SHEET_KEY).sheet1
 
@@ -364,6 +367,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
