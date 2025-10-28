@@ -203,58 +203,61 @@ def admin_summary():
     return render_template("admin_summary.html", table_html=html_table, user_id=user_id)
 
 # ---------------------- ✅ 인수증 이미지 생성 및 GCS 업로드 ----------------------
-def upload_to_gcs(file_path, file_name, bucket_name):
-    """GCS 버킷에 파일 업로드 후 signed URL 반환"""
-    try:
-        creds = Credentials.from_service_account_info(GOOGLE_CREDENTIALS)
-        client = storage.Client(credentials=creds)
-        bucket = client.bucket(bucket_name)
-        blob = bucket.blob(file_name)
-        blob.upload_from_filename(file_path, content_type="image/jpeg")
-        url = blob.generate_signed_url(expiration=timedelta(days=365), method="GET")
-        print(f"✅ GCS 업로드 성공: {url}")
-        return url
-    except Exception as e:
-        print(f"❌ GCS 업로드 실패: {e}")
-        return None
-
 def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
-    """인수증 이미지 생성"""
+    """자재 인수증 이미지 생성 (디자인 개선 버전)"""
     width, height = 1240, 1754
     img = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(img)
 
-    font_path = "AMIMMS/static/fonts/NotoSansKR-Bold.otf"
+    # ✅ 폰트 설정
+    font_path_bold = "AMIMMS/static/fonts/NotoSansKR-Bold.otf"
+    font_path_regular = "AMIMMS/static/fonts/NotoSansKR-Regular.otf"
     try:
-        title_font = ImageFont.truetype(font_path, 60)
-        bold_font = ImageFont.truetype(font_path, 34)
-    except OSError:
-        title_font = ImageFont.load_default()
-        bold_font = ImageFont.load_default()
+        title_font = ImageFont.truetype(font_path_bold, 60)
+        bold_font = ImageFont.truetype(font_path_bold, 36)
+        text_font = ImageFont.truetype(font_path_regular, 32)
+        small_font = ImageFont.truetype(font_path_regular, 26)
+    except:
+        title_font = bold_font = text_font = small_font = ImageFont.load_default()
 
+    # ✅ 상단 로고 및 제목
     logo_path = "AMIMMS/static/kdn_logo.png"
     if os.path.exists(logo_path):
-        logo = Image.open(logo_path).convert("RGBA").resize((180, 180))
-        img.paste(logo, (80, 60), logo)
+        logo = Image.open(logo_path).convert("RGBA").resize((220, 220))
+        img.paste(logo, (100, 60), logo)
 
-    draw.text((480, 100), "자재 인수증", font=title_font, fill="black")
-    draw.text((100, 250), f"작성일자: {datetime.now().strftime('%Y-%m-%d %H:%M')}", font=bold_font, fill="black")
+    draw.text((460, 120), "자재 인수증", font=title_font, fill="black")
 
-    y = 350
-    headers = ["통신방식", "구분", "신철", "수량", "박스번호"]
-    positions = [100, 400, 600, 800, 1000]
-    draw.rectangle((80, y, 1160, y + 55), outline="black", fill="#E8F0FE")
+    # ✅ 작성일자
+    draw.text((100, 300), f"작성일자: {datetime.now().strftime('%Y-%m-%d %H:%M')}", font=text_font, fill="black")
+
+    # ✅ 표 그리기
+    start_y = 400
+    headers = ["통신방식", "구분", "신/철", "수량", "박스번호"]
+    positions = [100, 400, 700, 900, 1100]
+    col_widths = [300, 300, 200, 200, 200]
+    header_height = 60
+    row_height = 50
+
+    # 표 헤더 영역
+    draw.rectangle((80, start_y, 1160, start_y + header_height), outline="black", fill="#E3ECFC")
     for i, h in enumerate(headers):
-        draw.text((positions[i], y + 10), h, font=bold_font, fill="black")
-    y += 70
+        draw.text((positions[i] + 10, start_y + 10), h, font=bold_font, fill="black")
 
+    # 표 내용
+    y = start_y + header_height
     for m in materials:
-        for i, key in enumerate(headers):
-            draw.text((positions[i], y), str(m.get(key, "")), font=bold_font, fill="black")
-        y += 50
-    draw.rectangle((80, 350, 1160, y), outline="black")
+        draw.rectangle((80, y, 1160, y + row_height), outline="black", fill="white")
+        draw.text((positions[0] + 10, y + 10), str(m.get("통신방식", "")), font=text_font, fill="black")
+        draw.text((positions[1] + 10, y + 10), str(m.get("구분", "")), font=text_font, fill="black")
+        draw.text((positions[2] + 10, y + 10), str(m.get("신철", "")), font=text_font, fill="black")
+        draw.text((positions[3] + 10, y + 10), str(m.get("수량", "")), font=text_font, fill="black")
+        draw.text((positions[4] + 10, y + 10), str(m.get("박스번호", "")), font=text_font, fill="black")
+        y += row_height
 
-    # ✅ 서명 반전 처리 추가됨
+    draw.rectangle((80, start_y, 1160, y), outline="black")
+
+    # ✅ 서명 처리 (반전 유지)
     def decode_sign(s):
         try:
             s = s.split(",")[1] if "," in s else s
@@ -269,18 +272,25 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     giver_img = decode_sign(giver_sign)
     receiver_img = decode_sign(receiver_sign)
 
-    footer_y = height - 150
-    draw.text((200, footer_y - 40), f"주는 사람: {giver} (인)", font=bold_font, fill="black")
-    draw.text((800, footer_y - 40), f"받는 사람: {receiver} (인)", font=bold_font, fill="black")
+    # ✅ 서명 위치
+    footer_y = y + 200
+    draw.text((200, footer_y), f"주는 사람: {giver} (인)", font=bold_font, fill="black")
+    draw.text((800, footer_y), f"받는 사람: {receiver} (인)", font=bold_font, fill="black")
 
     if giver_img:
-        img.paste(giver_img.resize((260, 120)), (240, footer_y - 190))
+        img.paste(giver_img.resize((250, 100)), (240, footer_y - 120))
     if receiver_img:
-        img.paste(receiver_img.resize((260, 120)), (840, footer_y - 190))
+        img.paste(receiver_img.resize((250, 100)), (840, footer_y - 120))
 
+    # ✅ 하단 회사 정보
+    footer_text = "한전KDN 주식회사 | AMI 자재관리시스템"
+    draw.text((width/2 - 280, height - 100), footer_text, font=small_font, fill="gray")
+
+    # ✅ 저장
     tmp_filename = f"/tmp/receipt_{receiver}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
     img.save(tmp_filename, "JPEG", quality=95)
     return upload_to_gcs(tmp_filename, os.path.basename(tmp_filename), GCS_BUCKET_NAME)
+
 
 # ---------------------- 로그아웃 ----------------------
 @app.route("/logout")
@@ -292,3 +302,4 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
