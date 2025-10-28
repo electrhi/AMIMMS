@@ -16,6 +16,10 @@ except ImportError:
     from PIL import Image, ImageDraw, ImageFont
 
 import requests
+import ssl
+
+ssl._create_default_https_context = ssl._create_unverified_context
+
 requests.adapters.DEFAULT_RETRIES = 5
 
 
@@ -258,3 +262,4 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
