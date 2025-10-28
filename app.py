@@ -10,9 +10,14 @@ from google.cloud import storage
 import ssl
 import requests
 
-# ✅ SSL 검증 우회 (Render SSL 오류 방지)
+
 ssl._create_default_https_context = ssl._create_unverified_context
 requests.adapters.DEFAULT_RETRIES = 5
+
+# ✅ gspread 초기화 전 추가
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 
 # ✅ Pillow Import 안정화
 try:
@@ -230,6 +235,43 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
         print("❌ GCS 업로드 실패 또는 URL 생성 오류")
     return gcs_link
 
+# ---------------------- ✅ 종합관리표 (관리자 전용) ----------------------
+@app.route("/admin_summary")
+def admin_summary():
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
+    user_id = session["user_id"]
+
+    # ✅ 관리자 권한 확인
+    df_users = pd.DataFrame(users_sheet.get_all_records())
+    user_row = df_users[df_users["ID"] == user_id]
+    if user_row.empty or user_row.iloc[0].get("AUTHORITY") != "y":
+        return render_template("no_permission.html")
+
+    # ✅ Records 불러오기
+    df = pd.DataFrame(records_sheet.get_all_records())
+    if df.empty:
+        return render_template("admin_summary.html", summary_table=None, message="등록된 데이터가 없습니다.")
+
+    # ✅ pivot 형태로 요약
+    pivot = df.pivot_table(
+        index="주는사람",
+        columns=["받는사람", "구분"],
+        values="수량",
+        aggfunc="sum",
+        fill_value=0,
+    )
+
+    total = pivot.sum(axis=0)
+    pivot.loc["합계"] = total
+
+    return render_template(
+        "admin_summary.html",
+        tables=[pivot.to_html(classes="table-auto border-collapse border text-center", justify="center")],
+        user_id=user_id,
+    )
+
+
 # ---------------------- 시트 저장 ----------------------
 def save_to_sheets(materials, giver, receiver):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -249,3 +291,4 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
