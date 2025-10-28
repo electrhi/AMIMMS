@@ -14,10 +14,11 @@ try:
 except ImportError:
     from PIL import Image, ImageDraw, ImageFont
 
-import requests
 import ssl
-
+import requests
+ssl._create_default_https_context = ssl._create_unverified_context  # ✅ SSL 검증 우회 (Google API만)
 requests.adapters.DEFAULT_RETRIES = 5
+
 
 # ---------------------- Flask 초기화 ----------------------
 app = Flask(__name__)
@@ -180,3 +181,4 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
