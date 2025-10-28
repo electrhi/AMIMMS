@@ -18,7 +18,17 @@ from openpyxl import Workbook
 # =========================================================
 # ✅ SSL 안정화 (Render 환경용)
 # =========================================================
+import requests
+
+# ✅ 안전한 SSL 인증서 컨텍스트 설정
 ssl._create_default_https_context = lambda: ssl.create_default_context(cafile=certifi.where())
+
+# ✅ requests 기본 세션도 안전하게 설정
+requests.packages.urllib3.disable_warnings()
+session = requests.Session()
+session.verify = certifi.where()
+
+# ✅ gspread 등 외부 라이브러리가 requests를 쓸 때 자동으로 인증서 참조됨
 requests.adapters.DEFAULT_RETRIES = 5
 
 # =========================================================
@@ -354,5 +364,6 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
