@@ -136,9 +136,12 @@ def summary():
 # ---------------------- ✅ GCS 업로드 함수 ----------------------
 def upload_to_gcs(file_path, file_name, bucket_name):
     """
-    GCS 버킷에 파일 업로드 후 공개 URL 반환
+    GCS 버킷에 파일 업로드 후 signed URL 반환 (Uniform bucket-level access 호환)
     """
     from google.oauth2 import service_account
+    from google.cloud import storage
+    import json, os
+
     try:
         creds = service_account.Credentials.from_service_account_info(
             json.loads(os.environ["GOOGLE_CREDENTIALS_JSON"])
@@ -148,8 +151,11 @@ def upload_to_gcs(file_path, file_name, bucket_name):
         blob = bucket.blob(file_name)
 
         blob.upload_from_filename(file_path, content_type="image/jpeg")
+
+        # ✅ make_public 대신 signed URL (1년 유효)
         url = blob.generate_signed_url(expiration=3600 * 24 * 365, method="GET")
-    return url
+        return url
+
     except Exception as e:
         print(f"❌ GCS 업로드 실패: {e}")
         return None
@@ -261,5 +267,6 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
