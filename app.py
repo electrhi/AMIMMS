@@ -60,15 +60,16 @@ def save_to_sheets(materials, giver, receiver):
         rows = []
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         for m in materials:
+            # ✅ 시트 컬럼 순서에 맞게 수정됨
             rows.append([
-                timestamp,
-                giver,
-                receiver,
                 m.get("통신방식", ""),
                 m.get("구분", ""),
+                giver,
+                receiver,
                 m.get("신철", ""),
                 m.get("수량", ""),
                 m.get("박스번호", ""),
+                timestamp,
             ])
 
         payload = {"values": rows}
@@ -142,7 +143,7 @@ def confirm():
         receiver_sign = request.form["receiver_sign"]
 
         receipt_link = generate_receipt(materials, giver, receiver, giver_sign, receiver_sign)
-        save_to_sheets(materials, giver, receiver)  # ✅ 누락된 함수 복구됨
+        save_to_sheets(materials, giver, receiver)  # ✅ 누락 함수 복구 완료
         session["last_receipt"] = receipt_link
         session.pop("materials", None)
         return render_template("receipt_result.html", receipt_url=receipt_link)
@@ -160,7 +161,7 @@ def summary():
     if df.empty or user_id not in df["받는사람"].values:
         return render_template("summary.html", summary_data=None, message="등록된 자재 데이터가 없습니다.")
 
-    # ✅ 숫자 변환 (안전성 강화)
+    # ✅ 숫자 변환
     df["수량"] = pd.to_numeric(df["수량"], errors="coerce").fillna(0).astype(int)
 
     df = df[df["받는사람"] == user_id]
@@ -183,7 +184,7 @@ def admin_summary():
     if df.empty:
         return render_template("admin_summary.html", table_html=None, message="등록된 데이터가 없습니다.")
 
-    # ✅ 문자열 수량 → 숫자로 변환
+    # ✅ 문자열 수량 → 숫자 변환
     df["수량"] = pd.to_numeric(df["수량"], errors="coerce").fillna(0).astype(int)
 
     pivot = df.pivot_table(
@@ -253,12 +254,14 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
         y += 50
     draw.rectangle((80, 350, 1160, y), outline="black")
 
+    # ✅ 서명 반전 처리 추가됨
     def decode_sign(s):
         try:
             s = s.split(",")[1] if "," in s else s
             if not s:
                 return None
-            img = Image.open(BytesIO(base64.b64decode(s)))
+            img = Image.open(BytesIO(base64.b64decode(s))).convert("L")
+            img = Image.eval(img, lambda p: 255 - p)
             return img.convert("RGBA")
         except Exception:
             return None
