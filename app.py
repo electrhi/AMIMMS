@@ -148,14 +148,15 @@ def confirm():
         # ✅ 인수증 이미지 생성 및 업로드
         receipt_link = generate_receipt(materials, giver, receiver, giver_sign, receiver_sign)
 
-        # ✅ 세션에 저장해 download_receipt()에서 활용 가능
+        # ✅ 세션에 저장해 /download_receipt에서 활용 가능
         session["last_receipt"] = receipt_link
 
+        # ✅ result.html에 링크만 전달
         return render_template(
             "result.html",
-            receipt_link=receipt_link,
-            receipt_path=receipt_link
+            receipt_link=receipt_link
         )
+
 
     return render_template("confirm.html", materials=materials, logged_user=logged_user)
 
@@ -397,6 +398,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
