@@ -94,7 +94,7 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
         img.paste(logo, (100, 60), logo)
 
     draw.text((460, 120), "자재 인수증", font=title_font, fill="black")
-    draw.text((100, 300), f"작성일자: {datetime.now().strftime('%Y-%m-%d %H:%M')}", font=text_font, fill="black")
+    draw.text((100, 300), f"작성일자: {datetime.now().strftime('%Y-%m-%d')}", font=text_font, fill="black")
 
     # ✅ 표 디자인
     start_y = 400
@@ -268,5 +268,6 @@ def admin_summary():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
