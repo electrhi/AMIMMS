@@ -5,22 +5,58 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>종합관리표</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<style>
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    text-align: center;
+  }
+  th, td {
+    border: 1px solid #e5e7eb;
+    padding: 10px;
+  }
+  th {
+    background-color: #f3f4f6;
+    font-weight: bold;
+  }
+  tr:nth-child(even) {
+    background-color: #f9fafb;
+  }
+  tr:hover {
+    background-color: #f3f4f6;
+    transition: background-color 0.2s ease;
+  }
+  .total-row {
+    background-color: #e0e7ff;
+    font-weight: bold;
+  }
+</style>
 </head>
 <body class="bg-gray-100 min-h-screen p-8">
-  <div class="bg-white shadow-lg rounded-2xl p-8 max-w-5xl mx-auto">
-    <h2 class="text-3xl font-bold text-purple-700 mb-6">📊 종합관리표</h2>
+  <div class="bg-white shadow-xl rounded-2xl p-8 max-w-6xl mx-auto">
+    <h2 class="text-3xl font-bold text-purple-700 mb-6 text-center">📊 종합관리표</h2>
 
     {% if message %}
-      <p class="text-gray-500">{{ message }}</p>
+      <p class="text-gray-500 text-center">{{ message }}</p>
     {% else %}
-      <div class="overflow-x-auto">
+      <div class="overflow-x-auto rounded-lg border border-gray-200">
         {{ table_html|safe }}
       </div>
     {% endif %}
 
-    <div class="mt-6 text-center">
-      <a href="{{ url_for('menu') }}" class="inline-block bg-gray-500 hover:bg-gray-600 text-white py-2 px-4 rounded-lg">← 메뉴로 돌아가기</a>
+    <div class="mt-8 text-center">
+      <a href="{{ url_for('menu') }}" class="inline-block bg-gray-600 hover:bg-gray-700 text-white py-2 px-6 rounded-lg transition">← 메뉴로 돌아가기</a>
     </div>
   </div>
+
+  <script>
+    // 합계 행 강조 (렌더링된 테이블의 마지막 행 색 변경)
+    document.addEventListener('DOMContentLoaded', () => {
+      const rows = document.querySelectorAll('table tr');
+      if (rows.length > 1) {
+        rows[rows.length - 1].classList.add('total-row');
+      }
+    });
+  </script>
 </body>
 </html>
