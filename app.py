@@ -8,6 +8,7 @@ from flask import Flask, render_template, request, redirect, url_for, session
 from google.oauth2.service_account import Credentials
 from google.cloud import storage
 from PIL import Image, ImageDraw, ImageFont
+from io import BytesIO
 import json
 import ssl
 import certifi
@@ -290,9 +291,8 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     bold_font = ImageFont.truetype(font_path, 34)
     small_font = ImageFont.truetype(font_path, 22)
 
-
     # ✅ 로고 삽입
-   base_dir = os.path.dirname(__file__)
+    base_dir = os.path.dirname(__file__)   # ← 잘못된 들여쓰기 수정
     logo_path = os.path.join(base_dir, "static", "kdn_logo.png")
 
     if os.path.exists(logo_path):
@@ -319,8 +319,7 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
         y += 50
     draw.rectangle((80, 300, 1160, y), outline="black")
 
-    # ✅ 서명 처리
-    def decode_sign(s):
+     def decode_sign(s):
         try:
             s = s.split(",")[1] if "," in s else s
             img = Image.open(BytesIO(base64.b64decode(s)))
@@ -333,7 +332,8 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     draw.text((200, footer_y - 40), f"주는 사람: {giver}", font=bold_font, fill="black")
     draw.text((800, footer_y - 40), f"받는 사람: {receiver}", font=bold_font, fill="black")
 
-     if giver_img:
+    # ✅ 여기 들여쓰기 오류 수정됨
+    if giver_img:
         giver_resized = giver_img.resize((260, 120))
         temp_giver = Image.new("RGBA", img.size, (255, 255, 255, 0))
         temp_giver.paste(giver_resized, (240, footer_y - 190), giver_resized)
@@ -393,6 +393,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
