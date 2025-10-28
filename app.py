@@ -1,40 +1,36 @@
 from flask import Flask, render_template, request, redirect, url_for, session, send_file
 from datetime import datetime
 from io import BytesIO
-import base64, os, qrcode, socket, gspread
+import base64, os, qrcode, socket, gspread, time, requests, json, pandas as pd
 from google.oauth2.service_account import Credentials
-import pandas as pd
-import json
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
-
-# ✅ Pillow Import 안정화 (Render + Python 3.13 대응)
+# ✅ Pillow 안정화 (Render + Python 3.13 대응)
 try:
     from PIL import Image, ImageDraw, ImageFont
 except ImportError:
     import subprocess
     subprocess.run(["pip", "install", "--no-cache-dir", "--upgrade", "Pillow==11.0.0"])
     from PIL import Image, ImageDraw, ImageFont
-    
-import requests
-requests.adapters.DEFAULT_RETRIES = 5  # SSL 일시 끊김 대비 자동 재시도
 
+requests.adapters.DEFAULT_RETRIES = 5  # SSL 일시 끊김 대비 자동 재시도
 
 # ---------------------- Flask 초기화 ----------------------
 app = Flask(__name__)
 app.secret_key = "kdn_secret_key"
 
-# ---------------------- Google Sheets 연결 ----------------------
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+# ---------------------- Google Sheets + Drive 인증 ----------------------
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
 
-# Render 환경변수에서 credentials.json 읽기
 CREDS = Credentials.from_service_account_info(
     json.loads(os.getenv("GOOGLE_CREDENTIALS_JSON")), scopes=SCOPES
 )
 gc = gspread.authorize(CREDS)
 
-# 🔹 환경변수로 시트 키 가져오기 (Render 설정에서 등록)
 USERS_SHEET_KEY = os.getenv("GOOGLE_USERS_SHEET_KEY")
 RECORDS_SHEET_KEY = os.getenv("GOOGLE_RECORDS_SHEET_KEY")
 
@@ -42,10 +38,21 @@ users_sheet = gc.open_by_key(USERS_SHEET_KEY).sheet1
 records_sheet = gc.open_by_key(RECORDS_SHEET_KEY).sheet1
 
 
+# ---------------------- Google Sheets SSL 재시도 래퍼 ----------------------
+def safe_get_all_records(sheet, retries=3, delay=1.5):
+    for attempt in range(retries):
+        try:
+            return sheet.get_all_records()
+        except requests.exceptions.SSLError as e:
+            print(f"⚠️ SSL 오류 발생 ({attempt+1}/{retries}) 재시도 중... {e}")
+            time.sleep(delay)
+    raise e
+
+
 # ---------------------- 로그인 ----------------------
 @app.route("/", methods=["GET", "POST"])
 def login():
-    df = pd.DataFrame(users_sheet.get_all_records())
+    df = pd.DataFrame(safe_get_all_records(users_sheet))
     users = {row["ID"]: row["PASSWORD"] for _, row in df.iterrows()}
 
     if request.method == "POST":
@@ -104,12 +111,13 @@ def confirm():
         giver_sign = request.form["giver_sign"]
         receiver_sign = request.form["receiver_sign"]
 
-        receipt_path = generate_receipt(materials, giver, receiver, giver_sign, receiver_sign)
+        # ✅ 인수증 생성 + Drive 업로드
+        receipt_link = generate_receipt(materials, giver, receiver, giver_sign, receiver_sign)
         save_to_sheets(materials, giver, receiver)
 
+        session["last_receipt"] = receipt_link
         session.pop("materials", None)
-        session["last_receipt"] = receipt_path
-        return render_template("receipt_result.html", receipt_path=receipt_path)
+        return render_template("receipt_result.html", receipt_path=receipt_link)
     return render_template("confirm.html", materials=materials, logged_user=logged_user)
 
 
@@ -130,60 +138,42 @@ def summary():
     summary.sort_values(["통신방식", "구분"], inplace=True)
     return render_template("summary.html", summary_data=summary.to_dict("records"))
 
-# ---------------------- Google Drive 업로드 함수 ----------------------
+
+# ---------------------- Google Drive 업로드 ----------------------
 def upload_to_drive(file_path, file_name, folder_id):
-    """
-    생성된 이미지 파일을 Google Drive 지정 폴더에 업로드하고
-    공개 공유 링크(URL)를 반환합니다.
-    """
     try:
         creds = Credentials.from_service_account_info(
-            json.loads(os.environ["GOOGLE_CREDENTIALS_JSON"])
+            json.loads(os.environ["GOOGLE_CREDENTIALS_JSON"]),
+            scopes=SCOPES
         )
         service = build("drive", "v3", credentials=creds)
-
-        # 🔹 업로드할 메타데이터
-        file_metadata = {
-            "name": file_name,
-            "parents": [folder_id]
-        }
+        file_metadata = {"name": file_name, "parents": [folder_id]}
         media = MediaFileUpload(file_path, mimetype="image/jpeg")
 
-        # 🔹 파일 업로드
-        uploaded = service.files().create(
-            body=file_metadata,
-            media_body=media,
-            fields="id"
-        ).execute()
-
-        # 🔹 모든 사용자가 열람 가능하도록 권한 부여
+        uploaded = service.files().create(body=file_metadata, media_body=media, fields="id").execute()
         service.permissions().create(
             fileId=uploaded["id"],
             body={"type": "anyone", "role": "reader"}
         ).execute()
 
-        # 🔹 공유 링크 반환
         return f"https://drive.google.com/file/d/{uploaded['id']}/view?usp=sharing"
-
     except Exception as e:
         print(f"❌ Google Drive 업로드 실패: {e}")
         return None
+
 
 # ---------------------- 인수증 생성 ----------------------
 def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     from PIL import Image, ImageDraw, ImageFont
     from io import BytesIO
-    import base64, os
-    from datetime import datetime
+    import base64
 
     width, height = 1240, 1754
     img = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(img)
-
     font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
     title_font = ImageFont.truetype(font_path, 60)
     bold_font = ImageFont.truetype(font_path, 34)
-    small_font = ImageFont.truetype(font_path, 22)
 
     draw.text((480, 100), "자재 인수증", font=title_font, fill="black")
     draw.text((100, 200), f"작성일자: {datetime.now().strftime('%Y-%m-%d %H:%M')}", font=bold_font, fill="black")
@@ -199,65 +189,48 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     y += 70
     for m in materials:
         for i, key in enumerate(headers):
-            val = m.get(key, "")
-            draw.text((positions[i], y), str(val), font=bold_font, fill="black")
+            draw.text((positions[i], y), str(m.get(key, "")), font=bold_font, fill="black")
         y += 50
-
     draw.rectangle((80, 300, 1160, y), outline="black")
 
-    # ---------------------- ✅ 서명 이미지 처리 ----------------------
+    # ✅ 서명 처리
     def decode_sign(s):
-        """Base64 → RGBA 이미지 변환"""
         try:
             s = s.split(",")[1] if "," in s else s
             if not s:
                 return None
             img = Image.open(BytesIO(base64.b64decode(s)))
-            return img.convert("RGBA")  # RGBA 모드로 통일
+            return img.convert("RGBA")
         except Exception:
             return None
 
     giver_img = decode_sign(giver_sign)
     receiver_img = decode_sign(receiver_sign)
-
     footer_y = height - 150
     draw.text((200, footer_y - 40), f"주는 사람: {giver} (인)", font=bold_font, fill="black")
     draw.text((800, footer_y - 40), f"받는 사람: {receiver} (인)", font=bold_font, fill="black")
 
-    # ---------------------- ✅ RGBA 병합 ----------------------
     if giver_img:
         giver_resized = giver_img.resize((260, 120))
         temp_giver = Image.new("RGBA", img.size, (255, 255, 255, 0))
         temp_giver.paste(giver_resized, (240, footer_y - 190), giver_resized)
         img = Image.alpha_composite(img.convert("RGBA"), temp_giver)
-
     if receiver_img:
         receiver_resized = receiver_img.resize((260, 120))
         temp_receiver = Image.new("RGBA", img.size, (255, 255, 255, 0))
         temp_receiver.paste(receiver_resized, (840, footer_y - 190), receiver_resized)
         img = Image.alpha_composite(img.convert("RGBA"), temp_receiver)
 
-    # ---------------------- ✅ Google Drive 업로드 ----------------------
-    tmp_filename = f"/tmp/receipt_{receiver}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
     img = img.convert("RGB")
+    tmp_filename = f"/tmp/receipt_{receiver}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
     img.save(tmp_filename, "JPEG", quality=95)
 
-    # 🔹 Google Drive 폴더 ID (직접 입력)
-    DRIVE_FOLDER_ID = "1pTwc4KQ4FylM-7vG8cYGOICNUzOHbj9N"  # 예: '1a2B3C4D5E6F7G8H9'
+    DRIVE_FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
+    if not DRIVE_FOLDER_ID:
+        raise RuntimeError("❌ GOOGLE_DRIVE_FOLDER_ID 환경변수가 설정되지 않았습니다. Render 환경변수에 공유드라이브 폴더 ID를 등록하세요.")
 
-    # 🔹 업로드 실행
     drive_link = upload_to_drive(tmp_filename, os.path.basename(tmp_filename), DRIVE_FOLDER_ID)
-
-    # ---------------------- ✅ 링크 반환 ----------------------
     return drive_link or "구글 드라이브 업로드 실패"
-
-
-# ---------------------- 로그아웃 ----------------------
-@app.route("/logout")
-def logout():
-    session.clear()
-    return redirect(url_for("login"))
-
 
 
 # ---------------------- 구글시트 저장 ----------------------
@@ -270,12 +243,25 @@ def save_to_sheets(materials, giver, receiver):
         ])
 
 
+# ---------------------- 인수증 다운로드 ----------------------
+@app.route("/download_receipt")
+def download_receipt():
+    receipt_path = session.get("last_receipt")
+    if receipt_path and os.path.exists(receipt_path):
+        return send_file(receipt_path, as_attachment=True, download_name=os.path.basename(receipt_path))
+    if "drive.google.com" in str(receipt_path):
+        return redirect(receipt_path)
+    return "❌ 인수증 파일을 찾을 수 없거나 로컬 다운로드가 지원되지 않습니다.", 404
+
+
+# ---------------------- 로그아웃 ----------------------
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
 # ---------------------- 서버 실행 ----------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
-
-
-
-
-
