@@ -7,6 +7,7 @@ import pandas as pd
 import json
 from googleapiclient.discovery import build
 from google.cloud import storage
+import ssl, os, requests
 
 # ✅ Pillow Import 안정화
 try:
@@ -17,9 +18,8 @@ except ImportError:
 import requests
 import ssl
 
-#ssl._create_default_https_context = ssl._create_unverified_context
 requests.adapters.DEFAULT_RETRIES = 5
-#requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += 'HIGH:!DH:!aNULL'
+requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += 'HIGH:!DH:!aNULL'
 
 # ---------------------- Flask 초기화 ----------------------
 app = Flask(__name__)
@@ -164,7 +164,7 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     draw = ImageDraw.Draw(img)
 
     # ✅ 한글 폰트 경로 (프로젝트에 추가한 폰트 사용)
-    font_path = "AMIMMS/static/fonts/NotoSansKR-Bold.otf"
+    font_path = os.path.join(os.path.dirname(__file__), "static/fonts/NotoSansKR-Bold.otf")
     title_font = ImageFont.truetype(font_path, 60)
     bold_font = ImageFont.truetype(font_path, 34)
     small_font = ImageFont.truetype(font_path, 22)
@@ -263,5 +263,6 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
