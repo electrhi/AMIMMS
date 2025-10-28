@@ -246,6 +246,14 @@ def admin_summary():
 
     return render_template("admin_summary.html", tables=[pivot.to_html(classes="data")])
 
+@app.route("/logout")
+def logout():
+    """로그아웃 시 세션 초기화 후 로그인 페이지로 이동"""
+    session.clear()
+    return redirect(url_for("login"))
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
