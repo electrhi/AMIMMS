@@ -17,13 +17,13 @@ USERS_SHEET_KEY = os.getenv("GOOGLE_USERS_SHEET_KEY")
 RECORDS_SHEET_KEY = os.getenv("GOOGLE_RECORDS_SHEET_KEY")
 GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME", "amimms-receipts")
 
-# ---------------------- ✅ Google Sheets 직접 호출 함수 ----------------------
+# ---------------------- ✅ Google Sheets 데이터 가져오기 ----------------------
 def get_google_sheet_data(sheet_key, sheet_name):
-    """Google Sheets API 직접 호출 (SSL 문제 우회 완전 대응)"""
+    """Google Sheets API 호출 (Render SSL 문제 대응)"""
     SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
     creds = Credentials.from_service_account_info(GOOGLE_CREDENTIALS, scopes=SCOPES)
 
-    # ✅ 올바른 방식으로 refresh 수행
+    # ✅ Refresh token 처리
     if not creds.valid or not creds.token:
         creds.refresh(Request())
     access_token = creds.token
@@ -42,6 +42,41 @@ def get_google_sheet_data(sheet_key, sheet_name):
     except Exception as e:
         print(f"❌ Google Sheets 데이터 불러오기 실패: {e}")
         return pd.DataFrame()
+
+# ---------------------- ✅ Google Sheets에 데이터 저장 ----------------------
+def save_to_sheets(materials, giver, receiver):
+    """인수증 데이터를 Google Sheets에 저장"""
+    try:
+        SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+        creds = Credentials.from_service_account_info(GOOGLE_CREDENTIALS, scopes=SCOPES)
+
+        if not creds.valid or not creds.token:
+            creds.refresh(Request())
+        access_token = creds.token
+
+        url = f"https://sheets.googleapis.com/v4/spreadsheets/{RECORDS_SHEET_KEY}/values/시트1:append?valueInputOption=USER_ENTERED"
+        headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+
+        rows = []
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        for m in materials:
+            rows.append([
+                timestamp,
+                giver,
+                receiver,
+                m.get("통신방식", ""),
+                m.get("구분", ""),
+                m.get("신철", ""),
+                m.get("수량", ""),
+                m.get("박스번호", ""),
+            ])
+
+        payload = {"values": rows}
+        resp = requests.post(url, headers=headers, data=json.dumps(payload), verify=False, timeout=10)
+        resp.raise_for_status()
+        print(f"✅ Google Sheets에 데이터 저장 완료 ({len(rows)}행)")
+    except Exception as e:
+        print(f"❌ Google Sheets 저장 실패: {e}")
 
 # ---------------------- 로그인 ----------------------
 @app.route("/", methods=["GET", "POST"])
@@ -107,7 +142,7 @@ def confirm():
         receiver_sign = request.form["receiver_sign"]
 
         receipt_link = generate_receipt(materials, giver, receiver, giver_sign, receiver_sign)
-        save_to_sheets(materials, giver, receiver)
+        save_to_sheets(materials, giver, receiver)  # ✅ 누락된 함수 복구됨
         session["last_receipt"] = receipt_link
         session.pop("materials", None)
         return render_template("receipt_result.html", receipt_url=receipt_link)
@@ -124,6 +159,9 @@ def summary():
 
     if df.empty or user_id not in df["받는사람"].values:
         return render_template("summary.html", summary_data=None, message="등록된 자재 데이터가 없습니다.")
+
+    # ✅ 숫자 변환 (안전성 강화)
+    df["수량"] = pd.to_numeric(df["수량"], errors="coerce").fillna(0).astype(int)
 
     df = df[df["받는사람"] == user_id]
     summary = df.groupby(["통신방식", "구분"], as_index=False).agg({"수량": "sum", "박스번호": "count"})
@@ -145,6 +183,9 @@ def admin_summary():
     if df.empty:
         return render_template("admin_summary.html", table_html=None, message="등록된 데이터가 없습니다.")
 
+    # ✅ 문자열 수량 → 숫자로 변환
+    df["수량"] = pd.to_numeric(df["수량"], errors="coerce").fillna(0).astype(int)
+
     pivot = df.pivot_table(
         index="주는사람",
         columns=["받는사람", "구분"],
@@ -153,7 +194,10 @@ def admin_summary():
         fill_value=0,
     )
     pivot.loc["합계"] = pivot.sum(axis=0)
-    html_table = pivot.to_html(classes="min-w-full border-collapse border text-center bg-white shadow rounded-lg", justify="center")
+    html_table = pivot.to_html(
+        classes="min-w-full border-collapse border text-center bg-white shadow rounded-lg",
+        justify="center"
+    )
 
     return render_template("admin_summary.html", table_html=html_table, user_id=user_id)
 
