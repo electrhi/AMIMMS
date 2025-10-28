@@ -61,30 +61,31 @@ GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME", "amimms-receipts")
 users_sheet = gc.open_by_key(USERS_SHEET_KEY).sheet1
 records_sheet = gc.open_by_key(RECORDS_SHEET_KEY).sheet1
 
+
 # =========================================================
 # ✅ 로그인
 # =========================================================
 @app.route("/", methods=["GET", "POST"])
 def login():
-    """사용자 로그인 (시트 기반 ID/PW 검증)"""
-    df = pd.DataFrame(users_sheet.get_all_records())
-    users = {
-        row["ID"]: {
-            "PASSWORD": row["PASSWORD"],
-            "AUTHORITY": row.get("AUTHORITY", 0)
-        } for _, row in df.iterrows()
-    }
-
     if request.method == "POST":
-        user_id = request.form.get("user_id", "").strip()
-        pw = request.form.get("password", "").strip()
-        if user_id in users and users[user_id]["PASSWORD"] == pw:
+        user_id = request.form["user_id"]
+        password = request.form["password"]
+
+        df = pd.DataFrame(users_sheet.get_all_records())
+
+        user = df.loc[df["ID"] == user_id]
+
+        if not user.empty and user.iloc[0]["PASSWORD"] == password:
+            # ✅ 로그인 성공 시 세션에 ID, 권한 저장
             session["logged_in"] = True
             session["user_id"] = user_id
-            session["authority"] = users[user_id]["AUTHORITY"]
+            session["authority"] = user.iloc[0]["AUTHORITY"]  # ← 중요!!
+
             return redirect(url_for("menu"))
-        return render_template("login.html", error="❌ 로그인 정보가 올바르지 않습니다.")
+        else:
+            return render_template("login.html", error="아이디 또는 비밀번호가 잘못되었습니다.")
     return render_template("login.html")
+
 
 # =========================================================
 # ✅ 메뉴 (로그인 사용자 표시 포함)
@@ -284,24 +285,25 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     draw = ImageDraw.Draw(img)
 
     # ✅ 폰트 설정
-    font_path = "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf"
-    if not os.path.exists(font_path):
-        font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-
+    font_path = os.path.join(os.path.dirname(__file__), "static/fonts/NotoSansKR-Bold.otf")
     title_font = ImageFont.truetype(font_path, 60)
     bold_font = ImageFont.truetype(font_path, 34)
+    small_font = ImageFont.truetype(font_path, 22)
+
 
     # ✅ 로고 삽입
-    logo_path = "static/kdn_logo.png"
+   base_dir = os.path.dirname(__file__)
+    logo_path = os.path.join(base_dir, "static", "kdn_logo.png")
+
     if os.path.exists(logo_path):
         logo = Image.open(logo_path).resize((200, 200))
         img.paste(logo, (width - 280, 80))
 
     draw.text((480, 100), "자재 인수증", font=title_font, fill="black")
-    draw.text((100, 200), f"작성일자: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", font=bold_font, fill="black")
+    draw.text((100, 200), f"작성일자: {datetime.now().strftime('%Y-%m-%d')}", font=bold_font, fill="black")
 
     # ✅ 표
-    y = 300
+    y = 350
     headers = ["통신방식", "구분", "신철", "수량", "박스번호"]
     positions = [100, 400, 600, 800, 1000]
     draw.rectangle((80, y, 1160, y + 55), outline="black", fill="#E8F0FE")
@@ -312,6 +314,7 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     y += 70
     for m in materials:
         for i, key in enumerate(headers):
+            val = m.get(key,"")
             draw.text((positions[i], y), str(m.get(key, "")), font=bold_font, fill="black")
         y += 50
     draw.rectangle((80, 300, 1160, y), outline="black")
@@ -330,19 +333,27 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     draw.text((200, footer_y - 40), f"주는 사람: {giver}", font=bold_font, fill="black")
     draw.text((800, footer_y - 40), f"받는 사람: {receiver}", font=bold_font, fill="black")
 
-    if giver_img:
-        img.paste(giver_img.resize((260, 120)), (240, footer_y - 190), giver_img)
+     if giver_img:
+        giver_resized = giver_img.resize((260, 120))
+        temp_giver = Image.new("RGBA", img.size, (255, 255, 255, 0))
+        temp_giver.paste(giver_resized, (240, footer_y - 190), giver_resized)
+        img = Image.alpha_composite(img.convert("RGBA"), temp_giver)
+
     if receiver_img:
-        img.paste(receiver_img.resize((260, 120)), (840, footer_y - 190), receiver_img)
+        receiver_resized = receiver_img.resize((260, 120))
+        temp_receiver = Image.new("RGBA", img.size, (255, 255, 255, 0))
+        temp_receiver.paste(receiver_resized, (840, footer_y - 190), receiver_resized)
+        img = Image.alpha_composite(img.convert("RGBA"), temp_receiver)
 
-    img.save("/tmp/receipt.jpg", "JPEG", quality=95)
-    gcs_link = upload_to_gcs(
-        "/tmp/receipt.jpg",
-        f"receipt_{receiver}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg",
-        GCS_BUCKET_NAME,
-    )
+    img = img.convert("RGB")
+
+    tmp_filename = f"/tmp/receipt_{receiver}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+    img.save(tmp_filename, "JPEG", quality=95)
+
+    BUCKET_NAME = os.getenv("GCS_BUCKET_NAME", "amimms-receipts")
+    gcs_link = upload_to_gcs(tmp_filename, os.path.basename(tmp_filename), BUCKET_NAME)
+
     return gcs_link or "GCS 업로드 실패"
-
 
 # =========================================================
 # ✅ Google Sheets 저장
@@ -382,6 +393,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
