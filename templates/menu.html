@@ -20,7 +20,8 @@
       누적 자재 현황
     </a>
 
-    {% if session['authority'] == 'y' %}
+    <!-- ✅ AUTHORITY = 'y' 인 사용자만 종합관리표 표시 -->
+    {% if authority == 'y' %}
       <a href="{{ url_for('admin_summary') }}" class="block bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg mb-4">
         종합관리표
       </a>
