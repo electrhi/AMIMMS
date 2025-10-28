@@ -270,6 +270,61 @@ def admin_summary():
     return render_template("admin_summary.html", table_html=table_html, user_id=user_id)
 
 
+# ---------------------- ✅ 관리자용 종합관리표 엑셀 다운로드 ----------------------
+@app.route("/download_admin_summary")
+def download_admin_summary():
+    if not session.get("logged_in"):
+        return redirect(url_for("login"))
+    if session.get("authority") != 1:
+        return "❌ 접근 권한이 없습니다.", 403
+
+    import io
+    from openpyxl import Workbook
+
+    user_id = session.get("user_id")
+    df = pd.DataFrame(records_sheet.get_all_records())
+
+    if df.empty:
+        return "❌ 다운로드할 데이터가 없습니다.", 404
+
+    df = df[df["주는사람"] == user_id]
+    if df.empty:
+        return "❌ 해당 사용자의 데이터가 없습니다.", 404
+
+    pivot = pd.pivot_table(df, index="받는사람", columns="구분", values="수량", aggfunc="sum", fill_value=0)
+    pivot.loc["합계"] = pivot.sum(numeric_only=True)
+    pivot.reset_index(inplace=True)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "종합관리표"
+
+    # ✅ 헤더 작성
+    for col_idx, col_name in enumerate(pivot.columns, start=1):
+        ws.cell(row=1, column=col_idx, value=col_name)
+
+    # ✅ 데이터 작성
+    for row_idx, row in enumerate(pivot.values.tolist(), start=2):
+        for col_idx, val in enumerate(row, start=1):
+            ws.cell(row=row_idx, column=col_idx, value=val)
+
+    # ✅ 메모리 버퍼 저장
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    from datetime import datetime
+    filename = f"admin_summary_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=filename,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+
+
 # ---------------------- 로그아웃 ----------------------
 @app.route("/logout")
 def logout():
@@ -281,3 +336,4 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
