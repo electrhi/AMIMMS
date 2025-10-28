@@ -81,16 +81,11 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     draw = ImageDraw.Draw(img)
 
     # ✅ 한글 폰트 설정 (깨짐 방지)
-    try:
-        font_path = "/usr/share/fonts/truetype/nanum/NanumGothic.ttf"
-        if not os.path.exists(font_path):
-            font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+        font_path = os.path.join(os.path.dirname(__file__), "static/fonts/NotoSansKR-Bold.otf")
         title_font = ImageFont.truetype(font_path, 60)
         bold_font = ImageFont.truetype(font_path, 36)
         text_font = ImageFont.truetype(font_path, 30)
         small_font = ImageFont.truetype(font_path, 24)
-    except Exception:
-        title_font = bold_font = text_font = small_font = ImageFont.load_default()
 
     # ✅ 상단 로고 및 제목
     logo_path = "static/kdn_logo.png"
@@ -273,3 +268,4 @@ def admin_summary():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
