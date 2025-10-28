@@ -136,7 +136,6 @@ def confirm():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
 
-    # ✅ materials와 logged_user도 템플릿에 전달해야 GET 요청 시 오류 없음
     materials = session.get("materials", [])
     logged_user = session.get("user_id")
 
@@ -146,18 +145,18 @@ def confirm():
         giver_sign = request.form["giver_sign"]
         receiver_sign = request.form["receiver_sign"]
 
-        # ✅ 인수증 저장 경로 (예시: receipts 폴더 안에 저장됨)
-        receipt_path = f"static/receipts/receipt_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-        receipt_link = url_for('static', filename=receipt_path.split('static/')[-1])
+        # ✅ 인수증 이미지 생성 및 업로드
+        receipt_link = generate_receipt(materials, giver, receiver, giver_sign, receiver_sign)
 
-        # ✅ result.html에 두 변수 모두 전달
+        # ✅ 세션에 저장해 download_receipt()에서 활용 가능
+        session["last_receipt"] = receipt_link
+
         return render_template(
             "result.html",
             receipt_link=receipt_link,
-            receipt_path=receipt_path
+            receipt_path=receipt_link
         )
 
-    # ✅ GET 요청 시 materials와 사용자명도 함께 전달 (confirm.html에서 사용함)
     return render_template("confirm.html", materials=materials, logged_user=logged_user)
 
 
@@ -193,7 +192,7 @@ def summary():
 def admin_summary():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
-    if session.get("authority") != 1:
+    if session.get("authority") != "y":
         return "❌ 접근 권한이 없습니다.", 403
 
     user_id = session.get("user_id", "")
@@ -393,6 +392,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
