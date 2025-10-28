@@ -202,6 +202,22 @@ def admin_summary():
 
     return render_template("admin_summary.html", table_html=html_table, user_id=user_id)
 
+# ---------------------- ✅ GCS 업로드 ----------------------
+def upload_to_gcs(file_path, file_name, bucket_name):
+    """GCS 버킷에 파일 업로드 후 signed URL 반환"""
+    try:
+        creds = Credentials.from_service_account_info(GOOGLE_CREDENTIALS)
+        client = storage.Client(credentials=creds)
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(file_name)
+        blob.upload_from_filename(file_path, content_type="image/jpeg")
+        url = blob.generate_signed_url(expiration=timedelta(days=365), method="GET")
+        print(f"✅ GCS 업로드 성공: {url}")
+        return url
+    except Exception as e:
+        print(f"❌ GCS 업로드 실패: {e}")
+        return None
+
 # ---------------------- ✅ 인수증 이미지 생성 및 GCS 업로드 ----------------------
 def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     """자재 인수증 이미지 생성 (디자인 개선 버전)"""
@@ -302,4 +318,5 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
