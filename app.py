@@ -93,10 +93,12 @@ def login():
 def menu():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
+    
+    # ✅ 권한 값 전달 (authority를 템플릿으로 넘김)
     return render_template(
         "menu.html",
-        user_id=session.get("user_id", ""),
-        authority=session.get("authority", 0)
+        user_id=session.get("user_id"),
+        authority=session.get("authority")
     )
 
 # =========================================================
@@ -132,6 +134,7 @@ def confirm():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
 
+    # ✅ materials와 logged_user도 템플릿에 전달해야 GET 요청 시 오류 없음
     materials = session.get("materials", [])
     logged_user = session.get("user_id")
 
@@ -141,14 +144,21 @@ def confirm():
         giver_sign = request.form["giver_sign"]
         receiver_sign = request.form["receiver_sign"]
 
-        receipt_link = generate_receipt(materials, giver, receiver, giver_sign, receiver_sign)
-        save_to_sheets(materials, giver, receiver)
+        # ✅ 인수증 저장 경로 (예시: receipts 폴더 안에 저장됨)
+        receipt_path = f"static/receipts/receipt_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+        receipt_link = url_for('static', filename=receipt_path.split('static/')[-1])
 
-        session["last_receipt"] = receipt_link
-        session.pop("materials", None)
-        return render_template("result.html", receipt_link=receipt_link)
+        # ✅ result.html에 두 변수 모두 전달
+        return render_template(
+            "result.html",
+            receipt_link=receipt_link,
+            receipt_path=receipt_path
+        )
 
+    # ✅ GET 요청 시 materials와 사용자명도 함께 전달 (confirm.html에서 사용함)
     return render_template("confirm.html", materials=materials, logged_user=logged_user)
+
+
 # =========================================================
 # ✅ 누적 자재 현황
 # =========================================================
@@ -372,6 +382,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
