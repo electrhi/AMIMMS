@@ -111,7 +111,7 @@ def confirm():
 
         session["last_receipt"] = receipt_link
         session.pop("materials", None)
-        return render_template("receipt_result.html", receipt_path=receipt_link)
+        return render_template("receipt_result.html", receipt_url=receipt_link)
     return render_template("confirm.html", materials=materials, logged_user=logged_user)
 
 
@@ -140,6 +140,7 @@ def upload_to_gcs(file_path, file_name, bucket_name):
     """
     from google.oauth2 import service_account
     from google.cloud import storage
+    from datetime import timedelta
     import json, os
 
     try:
@@ -153,7 +154,7 @@ def upload_to_gcs(file_path, file_name, bucket_name):
         blob.upload_from_filename(file_path, content_type="image/jpeg")
 
         # ✅ make_public 대신 signed URL (1년 유효)
-        url = blob.generate_signed_url(expiration=3600 * 24 * 365, method="GET")
+        url = blob.generate_signed_url(expiration=timedelta(days=365),method="GET")
         return url
 
     except Exception as e:
@@ -267,6 +268,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
