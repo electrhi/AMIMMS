@@ -88,7 +88,7 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
         small_font = ImageFont.truetype(font_path, 24)
 
     # ✅ 상단 로고 및 제목
-    logo_path = "static/kdn_logo.png"
+    logo_path = os.path.join(base_dir, "static", "kdn_logo.png")
     if os.path.exists(logo_path):
         logo = Image.open(logo_path).convert("RGBA").resize((200, 200))
         img.paste(logo, (100, 60), logo)
@@ -268,4 +268,5 @@ def admin_summary():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
