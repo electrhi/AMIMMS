@@ -262,6 +262,8 @@ def download_admin_summary():
 # =========================================================
 # ✅ GCS 업로드 함수
 # =========================================================
+from datetime import timedelta
+
 def upload_to_gcs(file_path, file_name, bucket_name):
     try:
         creds = Credentials.from_service_account_info(json.loads(os.environ["GOOGLE_CREDENTIALS_JSON"]))
@@ -269,11 +271,14 @@ def upload_to_gcs(file_path, file_name, bucket_name):
         bucket = client.bucket(bucket_name)
         blob = bucket.blob(file_name)
         blob.upload_from_filename(file_path, content_type="image/jpeg")
-        url = blob.generate_signed_url(expiration=3600 * 24 * 365, method="GET")
+
+        # ✅ URL 유효기간 1년으로 정확히 지정
+        url = blob.generate_signed_url(expiration=timedelta(days=365), method="GET")
         return url
     except Exception as e:
         print(f"❌ GCS 업로드 실패: {e}")
         return None
+
 
 
 # =========================================================
@@ -392,6 +397,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
