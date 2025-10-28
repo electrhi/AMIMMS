@@ -19,7 +19,6 @@ import requests
 import ssl
 
 requests.adapters.DEFAULT_RETRIES = 5
-requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += 'HIGH:!DH:!aNULL'
 
 # ---------------------- Flask 초기화 ----------------------
 app = Flask(__name__)
@@ -263,6 +262,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
