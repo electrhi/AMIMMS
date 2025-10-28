@@ -10,6 +10,10 @@ from google.oauth2.service_account import Credentials
 from google.auth.transport.requests import Request
 from google.cloud import storage
 
+# ✅ HTTPS 인증 경고 방지
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "kdn_secret_key")
 
@@ -22,10 +26,9 @@ GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME")
 GOOGLE_CREDENTIALS = eval(os.environ.get("GOOGLE_CREDENTIALS_JSON", "{}"))
 
 # ===============================
-# ✅ GCS 업로드 함수 (맨 위로 위치)
+# ✅ GCS 업로드 함수
 # ===============================
 def upload_to_gcs(file_path, file_name, bucket_name):
-    """GCS 업로드 후 signed URL 반환"""
     try:
         creds = Credentials.from_service_account_info(GOOGLE_CREDENTIALS)
         client = storage.Client(credentials=creds)
@@ -40,14 +43,17 @@ def upload_to_gcs(file_path, file_name, bucket_name):
         return None
 
 # ===============================
-# ✅ 구글 시트 데이터 가져오기 (컬럼명 정규화 포함)
+# ✅ 구글 시트 데이터 가져오기
 # ===============================
 def get_google_sheet_data(sheet_key, sheet_name):
-    """Google Sheets에서 데이터 가져오기"""
     SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
     creds = Credentials.from_service_account_info(GOOGLE_CREDENTIALS, scopes=SCOPES)
     if not creds.valid or not creds.token:
         creds.refresh(Request())
+
+    if not sheet_key:
+        print("❌ 시트 키 누락됨 (환경변수 확인 필요)")
+        return pd.DataFrame()
 
     url = f"https://sheets.googleapis.com/v4/spreadsheets/{sheet_key}/values/{sheet_name}"
     headers = {"Authorization": f"Bearer {creds.token}"}
@@ -62,32 +68,26 @@ def get_google_sheet_data(sheet_key, sheet_name):
         headers_row = data[0]
         records = data[1:]
         df = pd.DataFrame(records, columns=headers_row)
-
-        # ✅ 컬럼명 정규화: 띄어쓰기 제거, "/" 제거
         df.columns = df.columns.str.replace(" ", "").str.replace("/", "").str.strip()
-
         return df
     except Exception as e:
         print(f"❌ Google Sheets 데이터 불러오기 실패: {e}")
         return pd.DataFrame()
 
 # ===============================
-# 자재 인수증 이미지 생성 (디자인 복원 + 서명 반전 + 한글 폰트 대응)
+# 자재 인수증 이미지 생성
 # ===============================
 def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
-    """자재 인수증 이미지 생성"""
     width, height = 1240, 1754
     img = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(img)
 
-    # ✅ 한글 폰트 설정 (깨짐 방지)
     font_path = os.path.join(os.path.dirname(__file__), "static/fonts/NotoSansKR-Bold.otf")
     title_font = ImageFont.truetype(font_path, 60)
     bold_font = ImageFont.truetype(font_path, 36)
     text_font = ImageFont.truetype(font_path, 30)
     small_font = ImageFont.truetype(font_path, 24)
 
-    # ✅ 상단 로고 및 제목
     base_dir = os.path.dirname(__file__)
     logo_path = os.path.join(base_dir, "static", "kdn_logo.png")
     if os.path.exists(logo_path):
@@ -97,7 +97,6 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     draw.text((460, 120), "자재 인수증", font=title_font, fill="black")
     draw.text((100, 300), f"작성일자: {datetime.now().strftime('%Y-%m-%d')}", font=text_font, fill="black")
 
-    # ✅ 표 디자인
     start_y = 400
     headers = ["통신방식", "구분", "신철", "수량", "박스번호"]
     positions = [100, 400, 700, 900, 1100]
@@ -120,7 +119,6 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
 
     draw.rectangle((80, start_y, 1160, y), outline="black")
 
-    # ✅ 서명 반전 처리
     def decode_sign(encoded_sign):
         try:
             encoded_clean = encoded_sign.split(",")[1] if "," in encoded_sign else encoded_sign
@@ -144,19 +142,16 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     if receiver_img:
         img.paste(receiver_img.resize((250, 100)), (840, footer_y - 120))
 
-    draw.text(
-        (width / 2 - 280, height - 100),
-        "한전KDN 주식회사 | AMI 자재관리시스템",
-        font=small_font,
-        fill="gray",
-    )
+    draw.text((width / 2 - 280, height - 100),
+              "한전KDN 주식회사 | AMI 자재관리시스템",
+              font=small_font, fill="gray")
 
     tmp_filename = f"/tmp/receipt_{receiver}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
     img.save(tmp_filename, "JPEG", quality=95)
     return upload_to_gcs(tmp_filename, os.path.basename(tmp_filename), GCS_BUCKET_NAME)
 
 # ===============================
-# Flask Routes (기존 유지)
+# Flask Routes (변경 없음)
 # ===============================
 @app.route("/")
 def login():
@@ -186,28 +181,20 @@ def confirm():
         giver_sign = request.form.get("giver_sign")
         receiver_sign = request.form.get("receiver_sign")
 
-        materials = [
-            {
-                "통신방식": request.form.get("type"),
-                "구분": request.form.get("category"),
-                "신철": request.form.get("material"),
-                "수량": request.form.get("qty"),
-                "박스번호": request.form.get("box"),
-            }
-        ]
+        materials = [{
+            "통신방식": request.form.get("type"),
+            "구분": request.form.get("category"),
+            "신철": request.form.get("material"),
+            "수량": request.form.get("qty"),
+            "박스번호": request.form.get("box"),
+        }]
 
-        # 자재 인수증 생성 (디자인 + 서명 반전 포함)
         receipt_link = generate_receipt(materials, giver, receiver, giver_sign, receiver_sign)
-
-        # Google Sheets에 저장
         save_to_sheets(materials, giver, receiver)
 
         return render_template("result.html", receipt_link=receipt_link)
     return redirect("/form")
 
-# ===============================
-# Google Sheets 저장 함수
-# ===============================
 def save_to_sheets(materials, giver, receiver):
     try:
         SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
@@ -223,25 +210,15 @@ def save_to_sheets(materials, giver, receiver):
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         for m in materials:
-            row = [
-                m.get("통신방식", ""),
-                m.get("구분", ""),
-                giver,
-                receiver,
-                m.get("신철", ""),
-                m.get("수량", ""),
-                m.get("박스번호", ""),
-                now,
-            ]
-            ws.append_row(row, value_input_option="USER_ENTERED")
+            ws.append_row([
+                m.get("통신방식", ""), m.get("구분", ""), giver, receiver,
+                m.get("신철", ""), m.get("수량", ""), m.get("박스번호", ""), now
+            ], value_input_option="USER_ENTERED")
         print("✅ Google Sheets 저장 완료")
 
     except Exception as e:
         print(f"❌ 시트 저장 실패: {e}")
 
-# ===============================
-# 요약 및 관리자 페이지
-# ===============================
 @app.route("/summary")
 def summary():
     user_id = session.get("user_id", "")
@@ -258,11 +235,7 @@ def admin_summary():
         return render_template("admin_summary.html", data=[], total={})
 
     df["수량"] = pd.to_numeric(df["수량"], errors="coerce").fillna(0)
-    pivot = df.pivot_table(
-        index=["받는사람"], columns=["통신방식"], values="수량", aggfunc="sum", fill_value=0
-    )
-
-    # ✅ 합계 행 계산 (숫자형 컬럼만)
+    pivot = df.pivot_table(index=["받는사람"], columns=["통신방식"], values="수량", aggfunc="sum", fill_value=0)
     pivot.loc["합계"] = pivot.select_dtypes(include=["number"]).sum(axis=0)
 
     return render_template("admin_summary.html", tables=[pivot.to_html(classes="data")])
