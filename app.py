@@ -20,8 +20,8 @@ app.secret_key = os.environ.get("SECRET_KEY", "kdn_secret_key")
 # ===============================
 # 환경 변수 및 기본 설정
 # ===============================
-USERS_SHEET_KEY = os.environ.get("USERS_SHEET_KEY")
-RECORDS_SHEET_KEY = os.environ.get("RECORDS_SHEET_KEY")
+USERS_SHEET_KEY = os.environ.get("GOOGLE_RECORDS_SHEET_KEY")
+RECORDS_SHEET_KEY = os.environ.get("GOOGLE_RECORDS_SHEET_KEY")
 GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME")
 GOOGLE_CREDENTIALS = eval(os.environ.get("GOOGLE_CREDENTIALS_JSON", "{}"))
 
@@ -248,3 +248,4 @@ def admin_summary():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
