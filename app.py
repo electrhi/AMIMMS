@@ -219,7 +219,7 @@ def admin_summary():
 def download_admin_summary():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
-    if session.get("authority") != 1:
+    if session.get("authority") != "y":
         return "❌ 접근 권한이 없습니다.", 403
 
     user_id = session.get("user_id", "")
@@ -392,6 +392,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
