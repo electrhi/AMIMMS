@@ -318,7 +318,7 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
         y += 50
     draw.rectangle((80, 300, 1160, y), outline="black")
 
-     def decode_sign(s):
+    def decode_sign(s):
         try:
             s = s.split(",")[1] if "," in s else s
             img = Image.open(BytesIO(base64.b64decode(s)))
@@ -392,6 +392,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
