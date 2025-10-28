@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, session, send_file
-from datetime import datetime
+from datetime import datetime, timedelta
 from io import BytesIO
 import base64, os, qrcode, socket, gspread
 from google.oauth2.service_account import Credentials
@@ -7,7 +7,6 @@ import pandas as pd
 import json
 from googleapiclient.discovery import build
 from google.cloud import storage
-
 
 # ✅ Pillow Import 안정화
 try:
@@ -19,9 +18,7 @@ import requests
 import ssl
 
 ssl._create_default_https_context = ssl._create_unverified_context
-
 requests.adapters.DEFAULT_RETRIES = 5
-
 
 # ---------------------- Flask 초기화 ----------------------
 app = Flask(__name__)
@@ -40,7 +37,6 @@ RECORDS_SHEET_KEY = os.getenv("GOOGLE_RECORDS_SHEET_KEY")
 users_sheet = gc.open_by_key(USERS_SHEET_KEY).sheet1
 records_sheet = gc.open_by_key(RECORDS_SHEET_KEY).sheet1
 
-
 # ---------------------- 로그인 ----------------------
 @app.route("/", methods=["GET", "POST"])
 def login():
@@ -57,14 +53,12 @@ def login():
         return render_template("login.html", error="로그인 정보가 올바르지 않습니다.")
     return render_template("login.html")
 
-
 # ---------------------- 메뉴 ----------------------
 @app.route("/menu")
 def menu():
     if not session.get("logged_in"):
         return redirect(url_for("login"))
     return render_template("menu.html", user_id=session["user_id"])
-
 
 # ---------------------- 자재 입력 ----------------------
 @app.route("/form", methods=["GET", "POST"])
@@ -87,7 +81,6 @@ def form_page():
         session["materials"] = materials
         return redirect(url_for("confirm"))
     return render_template("form.html", materials=session.get("materials", []))
-
 
 # ---------------------- 확인 ----------------------
 @app.route("/confirm", methods=["GET", "POST"])
@@ -114,7 +107,6 @@ def confirm():
         return render_template("receipt_result.html", receipt_url=receipt_link)
     return render_template("confirm.html", materials=materials, logged_user=logged_user)
 
-
 # ---------------------- 누적 현황 ----------------------
 @app.route("/summary")
 def summary():
@@ -132,7 +124,6 @@ def summary():
     summary.sort_values(["통신방식", "구분"], inplace=True)
     return render_template("summary.html", summary_data=summary.to_dict("records"))
 
-
 # ---------------------- ✅ GCS 업로드 함수 ----------------------
 def upload_to_gcs(file_path, file_name, bucket_name):
     """
@@ -140,7 +131,6 @@ def upload_to_gcs(file_path, file_name, bucket_name):
     """
     from google.oauth2 import service_account
     from google.cloud import storage
-    from datetime import timedelta
     import json, os
 
     try:
@@ -154,13 +144,12 @@ def upload_to_gcs(file_path, file_name, bucket_name):
         blob.upload_from_filename(file_path, content_type="image/jpeg")
 
         # ✅ make_public 대신 signed URL (1년 유효)
-        url = blob.generate_signed_url(expiration=timedelta(days=365),method="GET")
+        url = blob.generate_signed_url(expiration=timedelta(days=365), method="GET")
         return url
 
     except Exception as e:
         print(f"❌ GCS 업로드 실패: {e}")
         return None
-
 
 # ---------------------- 인수증 생성 ----------------------
 def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
@@ -173,15 +162,24 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     img = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(img)
 
-    font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+    # ✅ 한글 폰트 경로 (프로젝트에 추가한 폰트 사용)
+    font_path = "AMIMMS/static/fonts/NotoSansKR-Bold.otf"
     title_font = ImageFont.truetype(font_path, 60)
     bold_font = ImageFont.truetype(font_path, 34)
     small_font = ImageFont.truetype(font_path, 22)
 
-    draw.text((480, 100), "자재 인수증", font=title_font, fill="black")
-    draw.text((100, 200), f"작성일자: {datetime.now().strftime('%Y-%m-%d %H:%M')}", font=bold_font, fill="black")
+    # ✅ 로고 추가 (상단 왼쪽)
+    logo_path = "AMIMMS/static/kdn_logo.png"
+    if os.path.exists(logo_path):
+        logo = Image.open(logo_path).convert("RGBA")
+        logo = logo.resize((180, 180))
+        img.paste(logo, (80, 60), logo)
 
-    y = 300
+    # 제목
+    draw.text((480, 100), "자재 인수증", font=title_font, fill="black")
+    draw.text((100, 250), f"작성일자: {datetime.now().strftime('%Y-%m-%d %H:%M')}", font=bold_font, fill="black")
+
+    y = 350
     headers = ["통신방식", "구분", "신철", "수량", "박스번호"]
     positions = [100, 400, 600, 800, 1000]
     draw.rectangle((80, y, 1160, y + 55), outline="black", fill="#E8F0FE")
@@ -196,7 +194,7 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
             draw.text((positions[i], y), str(val), font=bold_font, fill="black")
         y += 50
 
-    draw.rectangle((80, 300, 1160, y), outline="black")
+    draw.rectangle((80, 350, 1160, y), outline="black")
 
     def decode_sign(s):
         try:
@@ -237,7 +235,6 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
 
     return gcs_link or "GCS 업로드 실패"
 
-
 # ---------------------- 구글시트 저장 ----------------------
 def save_to_sheets(materials, giver, receiver):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -247,7 +244,6 @@ def save_to_sheets(materials, giver, receiver):
             m["신철"], m["수량"], m["박스번호"], now
         ])
 
-
 # ---------------------- 다운로드 ----------------------
 @app.route("/download_receipt")
 def download_receipt():
@@ -256,19 +252,13 @@ def download_receipt():
         return redirect(receipt_path)
     return "❌ 인수증 파일을 찾을 수 없습니다.", 404
 
-
 # ---------------------- 로그아웃 ----------------------
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect(url_for("login"))
 
-
 # ---------------------- 서버 실행 ----------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
-
-
-
-
