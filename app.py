@@ -5,6 +5,7 @@ import base64, os, json, requests, pandas as pd
 from PIL import Image, ImageDraw, ImageFont
 from google.oauth2.service_account import Credentials
 from google.cloud import storage
+from google.auth.transport.requests import Request
 
 # ---------------------- Flask 초기화 ----------------------
 app = Flask(__name__)
@@ -22,10 +23,9 @@ def get_google_sheet_data(sheet_key, sheet_name):
     SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
     creds = Credentials.from_service_account_info(GOOGLE_CREDENTIALS, scopes=SCOPES)
 
-    # 토큰 생성 또는 갱신
-    request_adapter = requests.Request()
-    if not creds.valid:
-        creds.refresh(request_adapter)
+    # ✅ 올바른 방식으로 refresh 수행
+    if not creds.valid or not creds.token:
+        creds.refresh(Request())
     access_token = creds.token
 
     url = f"https://sheets.googleapis.com/v4/spreadsheets/{sheet_key}/values/{sheet_name}"
@@ -234,23 +234,6 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     tmp_filename = f"/tmp/receipt_{receiver}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
     img.save(tmp_filename, "JPEG", quality=95)
     return upload_to_gcs(tmp_filename, os.path.basename(tmp_filename), GCS_BUCKET_NAME)
-
-# ---------------------- ✅ 시트 저장 ----------------------
-def save_to_sheets(materials, giver, receiver):
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    try:
-        SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-        creds = Credentials.from_service_account_info(GOOGLE_CREDENTIALS, scopes=SCOPES)
-        access_token = creds.token or creds.refresh(requests.Request())
-        url = f"https://sheets.googleapis.com/v4/spreadsheets/{RECORDS_SHEET_KEY}/values/시트1:append?valueInputOption=RAW"
-        headers = {"Authorization": f"Bearer {creds.token}", "Content-Type": "application/json"}
-        for m in materials:
-            data = {
-                "values": [[m["통신방식"], m["구분"], giver, receiver, m["신철"], m["수량"], m["박스번호"], now]]
-            }
-            requests.post(url, headers=headers, json=data, verify=False)
-    except Exception as e:
-        print(f"❌ 시트 저장 실패: {e}")
 
 # ---------------------- 로그아웃 ----------------------
 @app.route("/logout")
