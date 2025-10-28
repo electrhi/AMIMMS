@@ -35,7 +35,6 @@ CREDS = Credentials.from_service_account_info(
     json.loads(os.getenv("GOOGLE_CREDENTIALS_JSON")), scopes=SCOPES
 )
 gc = gspread.authorize(CREDS)
-gc.session.verify = certifi.where()
 
 USERS_SHEET_KEY = os.getenv("GOOGLE_USERS_SHEET_KEY")
 RECORDS_SHEET_KEY = os.getenv("GOOGLE_RECORDS_SHEET_KEY")
@@ -355,3 +354,4 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
