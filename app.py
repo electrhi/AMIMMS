@@ -10,7 +10,7 @@ from google.oauth2.service_account import Credentials
 from google.auth.transport.requests import Request
 from google.cloud import storage
 
-# ✅ HTTPS 인증 경고 방지
+# ✅ HTTPS 인증 경고 방지 (Render 로그 경고 제거)
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -29,6 +29,7 @@ GOOGLE_CREDENTIALS = eval(os.environ.get("GOOGLE_CREDENTIALS_JSON", "{}"))
 # ✅ GCS 업로드 함수
 # ===============================
 def upload_to_gcs(file_path, file_name, bucket_name):
+    """GCS 업로드 후 signed URL 반환"""
     try:
         creds = Credentials.from_service_account_info(GOOGLE_CREDENTIALS)
         client = storage.Client(credentials=creds)
@@ -46,14 +47,15 @@ def upload_to_gcs(file_path, file_name, bucket_name):
 # ✅ 구글 시트 데이터 가져오기
 # ===============================
 def get_google_sheet_data(sheet_key, sheet_name):
+    """Google Sheets에서 데이터 가져오기"""
+    if not sheet_key:
+        print("❌ Google Sheet Key 누락 (환경변수 확인 필요)")
+        return pd.DataFrame()
+
     SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
     creds = Credentials.from_service_account_info(GOOGLE_CREDENTIALS, scopes=SCOPES)
     if not creds.valid or not creds.token:
         creds.refresh(Request())
-
-    if not sheet_key:
-        print("❌ 시트 키 누락됨 (환경변수 확인 필요)")
-        return pd.DataFrame()
 
     url = f"https://sheets.googleapis.com/v4/spreadsheets/{sheet_key}/values/{sheet_name}"
     headers = {"Authorization": f"Bearer {creds.token}"}
@@ -82,12 +84,14 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     img = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(img)
 
+    # ✅ 한글 폰트 설정 (깨짐 방지)
     font_path = os.path.join(os.path.dirname(__file__), "static/fonts/NotoSansKR-Bold.otf")
     title_font = ImageFont.truetype(font_path, 60)
     bold_font = ImageFont.truetype(font_path, 36)
     text_font = ImageFont.truetype(font_path, 30)
     small_font = ImageFont.truetype(font_path, 24)
 
+    # ✅ 로고 + 제목
     base_dir = os.path.dirname(__file__)
     logo_path = os.path.join(base_dir, "static", "kdn_logo.png")
     if os.path.exists(logo_path):
@@ -97,6 +101,7 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     draw.text((460, 120), "자재 인수증", font=title_font, fill="black")
     draw.text((100, 300), f"작성일자: {datetime.now().strftime('%Y-%m-%d')}", font=text_font, fill="black")
 
+    # ✅ 표 생성
     start_y = 400
     headers = ["통신방식", "구분", "신철", "수량", "박스번호"]
     positions = [100, 400, 700, 900, 1100]
@@ -119,6 +124,7 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
 
     draw.rectangle((80, start_y, 1160, y), outline="black")
 
+    # ✅ 서명 반전
     def decode_sign(encoded_sign):
         try:
             encoded_clean = encoded_sign.split(",")[1] if "," in encoded_sign else encoded_sign
@@ -151,7 +157,7 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     return upload_to_gcs(tmp_filename, os.path.basename(tmp_filename), GCS_BUCKET_NAME)
 
 # ===============================
-# Flask Routes (변경 없음)
+# Flask Routes
 # ===============================
 @app.route("/")
 def login():
