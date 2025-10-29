@@ -281,7 +281,7 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     # ✅ 폰트 설정
     font_path = os.path.join(os.path.dirname(__file__), "static/fonts/NotoSansKR-Bold.otf")
     title_font = ImageFont.truetype(font_path, 64)
-    bold_font = ImageFont.truetype(font_path, 36)
+    bold_font = ImageFont.truetype(font_path, 30)
     small_font = ImageFont.truetype(font_path, 26)
 
         # ✅ 로고 (크기 줄이기 + 위치 조정)
@@ -300,7 +300,7 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
         # ✅ 표 헤더 (폭 조정 — 오른쪽 넘침 방지)
     y = 360
     headers = ["통신방식", "구분", "신철", "수량", "박스번호"]
-    positions = [100, 380, 580, 780, 960]  # 🔹 전체적으로 왼쪽으로 40px씩 줄임
+    positions = [80, 500, 400, 780, 1040]  # 🔹 전체적으로 왼쪽으로 40px씩 줄임
     row_height = 60
 
     draw.rectangle((80, y, 1100, y + row_height), outline="black", fill="#E8F0FE")
@@ -429,6 +429,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
