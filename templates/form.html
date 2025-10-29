@@ -28,18 +28,26 @@
           {% if materials %}
             {% for m in materials %}
             <tr class="border-b">
-              <td><select name="통신방식" class="border p-1 rounded-md">
-                <option selected>{{ m['통신방식'] }}</option>
-                <option>KS-PLC</option><option>HPGP</option><option>IoT-PLC</option><option>LTE</option>
-              </select></td>
+              <!-- ✅ 통신방식 선택 -->
+              <td>
+                <select name="통신방식" class="border p-1 rounded-md" onchange="updateCategoryOptions(this)">
+                  <option value="">통신방식 선택</option>
+                  <option {% if m['통신방식'] == 'KS-PLC' %}selected{% endif %}>KS-PLC</option>
+                  <option {% if m['통신방식'] == 'HPGP' %}selected{% endif %}>HPGP</option>
+                  <option {% if m['통신방식'] == 'IoT-PLC' %}selected{% endif %}>IoT-PLC</option>
+                  <option {% if m['통신방식'] == 'LTE' %}selected{% endif %}>LTE</option>
+                  <option {% if m['통신방식'] == '부속자재' %}selected{% endif %}>부속자재</option>
+                </select>
+              </td>
 
-              <td><select name="구분" class="border p-1 rounded-md">
-                <option selected>{{ m['구분'] }}</option>
-                <option>Adv-E</option><option>G-Type</option><option>E-Type</option><option>표준형</option><option>AMIGO</option>
-              </select></td>
+              <!-- ✅ 구분 선택 -->
+              <td>
+                <select name="구분" class="border p-1 rounded-md" disabled>
+                  <option value="">구분 선택</option>
+                </select>
+              </td>
 
               <td><select name="신철" class="border p-1 rounded-md">
-                <option selected>{{ m['신철'] }}</option>
                 <option>신</option><option>철</option>
               </select></td>
 
@@ -53,12 +61,21 @@
             {% endfor %}
           {% else %}
             <tr class="border-b">
-              <td><select name="통신방식" class="border p-1 rounded-md">
-                <option>KS-PLC</option><option>HPGP</option><option>IoT-PLC</option><option>LTE</option>
-              </select></td>
-              <td><select name="구분" class="border p-1 rounded-md">
-                <option>Adv-E</option><option>G-Type</option><option>E-Type</option><option>표준형</option><option>AMIGO</option>
-              </select></td>
+              <td>
+                <select name="통신방식" class="border p-1 rounded-md" onchange="updateCategoryOptions(this)">
+                  <option value="">통신방식 선택</option>
+                  <option>KS-PLC</option>
+                  <option>HPGP</option>
+                  <option>IoT-PLC</option>
+                  <option>LTE</option>
+                  <option>부속자재</option>
+                </select>
+              </td>
+              <td>
+                <select name="구분" class="border p-1 rounded-md" disabled>
+                  <option value="">구분 선택</option>
+                </select>
+              </td>
               <td><select name="신철" class="border p-1 rounded-md">
                 <option>신</option><option>철</option>
               </select></td>
@@ -73,7 +90,7 @@
       </table>
     </div>
 
-    <!-- ✅ 합계 표 (분리된 형태) -->
+    <!-- ✅ 합계 표 -->
     <div class="mt-5 border-t pt-4">
       <h3 class="text-lg font-bold text-gray-800 mb-2">📊 자재 합계 요약</h3>
       <div class="overflow-x-auto">
@@ -97,7 +114,6 @@
         + 행 추가
       </button>
       <div class="flex gap-3">
-        <!-- ⬅ 이전 버튼 추가 -->
         <a href="{{ url_for('menu') }}" class="bg-gray-500 text-white px-6 py-2 rounded-lg hover:bg-gray-600">
           ⬅ 이전
         </a>
@@ -115,12 +131,17 @@ function addRow(){
   const tr=document.createElement('tr');
   tr.classList.add("border-b");
   tr.innerHTML=`
-    <td><select name="통신방식" class="border p-1 rounded-md">
-      <option>KS-PLC</option><option>HPGP</option><option>IoT-PLC</option><option>LTE</option>
-    </select></td>
-    <td><select name="구분" class="border p-1 rounded-md">
-      <option>Adv-E</option><option>G-Type</option><option>E-Type</option><option>표준형</option><option>AMIGO</option>
-    </select></td>
+    <td>
+      <select name="통신방식" class="border p-1 rounded-md" onchange="updateCategoryOptions(this)">
+        <option value="">통신방식 선택</option>
+        <option>KS-PLC</option><option>HPGP</option><option>IoT-PLC</option><option>LTE</option><option>부속자재</option>
+      </select>
+    </td>
+    <td>
+      <select name="구분" class="border p-1 rounded-md" disabled>
+        <option value="">구분 선택</option>
+      </select>
+    </td>
     <td><select name="신철" class="border p-1 rounded-md">
       <option>신</option><option>철</option>
     </select></td>
@@ -166,6 +187,37 @@ function updateSummary(){
   });
 }
 updateSummary();
+
+// ✅ 통신방식에 따라 구분 옵션 변경
+const categoryOptions = {
+  "기본": ["Adv-E", "G-Type", "E-Type", "표준형", "AMIGO", "Adv-E(연결장치)"],
+  "부속자재": ["485커넥터", "485케이블(0.5)", "485케이블(1.0)", "스틱형봉인", "줄봉인"]
+};
+
+function updateCategoryOptions(selectElem) {
+  const commValue = selectElem.value;
+  const row = selectElem.closest("tr");
+  const categorySelect = row.querySelector("select[name='구분']");
+
+  categorySelect.innerHTML = ""; // 기존 옵션 제거
+
+  if (!commValue) {
+    categorySelect.disabled = true;
+    categorySelect.innerHTML = "<option value=''>구분 선택</option>";
+    return;
+  }
+
+  const list = (commValue === "부속자재") ? categoryOptions["부속자재"] : categoryOptions["기본"];
+
+  categorySelect.disabled = false;
+  categorySelect.innerHTML = "<option value=''>구분 선택</option>";
+  list.forEach(opt => {
+    const option = document.createElement("option");
+    option.value = opt;
+    option.textContent = opt;
+    categorySelect.appendChild(option);
+  });
+}
 </script>
 
 </body>
