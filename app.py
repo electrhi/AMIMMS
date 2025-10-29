@@ -395,12 +395,31 @@ def save_to_sheets(materials, giver, receiver):
 # =========================================================
 # ✅ 인수증 다운로드
 # =========================================================
+from flask import send_file
+
 @app.route("/download_receipt")
 def download_receipt():
-    receipt_path = session.get("last_receipt")
-    if receipt_path:
-        return redirect(receipt_path)
-    return "❌ 인수증 파일을 찾을 수 없습니다.", 404
+    receipt_url = session.get("last_receipt")
+    if not receipt_url:
+        return "❌ 인수증 파일을 찾을 수 없습니다.", 404
+
+    try:
+        # ✅ GCS 링크에서 이미지 데이터 요청
+        response = requests.get(receipt_url)
+        if response.status_code != 200:
+            return "❌ 인수증 파일을 다운로드할 수 없습니다.", 500
+
+        # ✅ Flask가 직접 파일로 반환
+        return send_file(
+            BytesIO(response.content),
+            as_attachment=True,
+            download_name=f"receipt_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg",
+            mimetype="image/jpeg"
+        )
+    except Exception as e:
+        print("❌ 다운로드 오류:", e)
+        return "❌ 파일 다운로드 중 오류가 발생했습니다.", 500
+
 
 
 # =========================================================
@@ -418,6 +437,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
