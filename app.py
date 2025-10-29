@@ -150,6 +150,7 @@ def confirm():
 
         # ✅ 세션에 저장해 /download_receipt에서 활용 가능
         session["last_receipt"] = receipt_link
+        session["last_receiver"] = receive
 
         # ✅ result.html에 링크만 전달
         return render_template(
@@ -400,6 +401,8 @@ from flask import send_file
 @app.route("/download_receipt")
 def download_receipt():
     receipt_url = session.get("last_receipt")
+    receiver = session.get("last_receiver", "unknown")  # ✅ 기본값 추가
+
     if not receipt_url:
         return "❌ 인수증 파일을 찾을 수 없습니다.", 404
 
@@ -409,17 +412,19 @@ def download_receipt():
         if response.status_code != 200:
             return "❌ 인수증 파일을 다운로드할 수 없습니다.", 500
 
-        # ✅ Flask가 직접 파일로 반환
+        # ✅ Flask가 직접 파일로 반환 (받는사람_날짜_시간 형식)
+        filename = f"receipt_{receiver}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
+
         return send_file(
             BytesIO(response.content),
             as_attachment=True,
-            download_name=f"receipt_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg",
+            download_name=filename,
             mimetype="image/jpeg"
         )
+
     except Exception as e:
         print("❌ 다운로드 오류:", e)
         return "❌ 파일 다운로드 중 오류가 발생했습니다.", 500
-
 
 
 # =========================================================
@@ -437,6 +442,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
