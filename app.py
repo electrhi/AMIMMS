@@ -292,38 +292,43 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
 
     # ✅ 폰트 설정
     font_path = os.path.join(os.path.dirname(__file__), "static/fonts/NotoSansKR-Bold.otf")
-    title_font = ImageFont.truetype(font_path, 60)
-    bold_font = ImageFont.truetype(font_path, 34)
-    small_font = ImageFont.truetype(font_path, 22)
+    title_font = ImageFont.truetype(font_path, 64)
+    bold_font = ImageFont.truetype(font_path, 36)
+    small_font = ImageFont.truetype(font_path, 26)
 
-    # ✅ 로고 삽입
-    base_dir = os.path.dirname(__file__)   # ← 잘못된 들여쓰기 수정
+    # ✅ 로고 (크기 줄이기 + 예쁜 위치)
+    base_dir = os.path.dirname(__file__)
     logo_path = os.path.join(base_dir, "static", "kdn_logo.png")
 
     if os.path.exists(logo_path):
-        logo = Image.open(logo_path).resize((200, 200))
-        img.paste(logo, (width - 280, 80))
+        logo = Image.open(logo_path).convert("RGBA")
+        logo.thumbnail((140, 140))  # 🔹 높이 줄임 (이전 200 → 140)
+        img.paste(logo, (width - 240, 80), logo)  # 🔹 위치도 살짝 조정
 
-    draw.text((480, 100), "자재 인수증", font=title_font, fill="black")
-    draw.text((100, 200), f"작성일자: {datetime.now().strftime('%Y-%m-%d')}", font=bold_font, fill="black")
+    # ✅ 제목 & 날짜
+    draw.text((width // 2 - 150, 100), "자재 인수증", font=title_font, fill="black")
+    draw.text((100, 230), f"작성일자: {datetime.now().strftime('%Y-%m-%d')}", font=bold_font, fill="black")
 
-    # ✅ 표
-    y = 350
+    # ✅ 표 헤더
+    y = 360
     headers = ["통신방식", "구분", "신철", "수량", "박스번호"]
     positions = [100, 400, 600, 800, 1000]
-    draw.rectangle((80, y, 1160, y + 55), outline="black", fill="#E8F0FE")
+    row_height = 60
 
+    draw.rectangle((80, y, 1160, y + row_height), outline="black", fill="#E8F0FE")
     for i, h in enumerate(headers):
         draw.text((positions[i], y + 10), h, font=bold_font, fill="black")
 
-    y += 70
+    y += row_height
     for m in materials:
+        draw.rectangle((80, y, 1160, y + row_height), outline="black", fill="white")
         for i, key in enumerate(headers):
-            val = m.get(key,"")
-            draw.text((positions[i], y), str(m.get(key, "")), font=bold_font, fill="black")
-        y += 50
-    draw.rectangle((80, 300, 1160, y), outline="black")
+            draw.text((positions[i], y + 10), str(m.get(key, "")), font=bold_font, fill="black")
+        y += row_height
 
+    draw.rectangle((80, 360, 1160, y), outline="black")
+
+    # ✅ 서명 디코드
     def decode_sign(s):
         try:
             s = s.split(",")[1] if "," in s else s
@@ -333,25 +338,24 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
             return None
 
     giver_img, receiver_img = decode_sign(giver_sign), decode_sign(receiver_sign)
-    footer_y = height - 150
-    draw.text((200, footer_y - 40), f"주는 사람: {giver}", font=bold_font, fill="black")
-    draw.text((800, footer_y - 40), f"받는 사람: {receiver}", font=bold_font, fill="black")
 
-    # ✅ 여기 들여쓰기 오류 수정됨
+    # ✅ 서명 위치
+    footer_y = height - 200
+    draw.text((200, footer_y + 40), f"주는 사람: {giver} (인)", font=bold_font, fill="black")
+    draw.text((800, footer_y + 40), f"받는 사람: {receiver} (인)", font=bold_font, fill="black")
+
+    # ✅ 서명이 글자 위에 겹치도록 조정 (겹침효과)
     if giver_img:
-        giver_resized = giver_img.resize((260, 120))
-        temp_giver = Image.new("RGBA", img.size, (255, 255, 255, 0))
-        temp_giver.paste(giver_resized, (240, footer_y - 190), giver_resized)
-        img = Image.alpha_composite(img.convert("RGBA"), temp_giver)
+        giver_resized = giver_img.resize((220, 100))
+        img.paste(giver_resized, (320, footer_y - 10), giver_resized)  # 👈 글자보다 위로 올림
 
     if receiver_img:
-        receiver_resized = receiver_img.resize((260, 120))
-        temp_receiver = Image.new("RGBA", img.size, (255, 255, 255, 0))
-        temp_receiver.paste(receiver_resized, (840, footer_y - 190), receiver_resized)
-        img = Image.alpha_composite(img.convert("RGBA"), temp_receiver)
+        receiver_resized = receiver_img.resize((220, 100))
+        img.paste(receiver_resized, (920, footer_y - 10), receiver_resized)
 
     img = img.convert("RGB")
 
+    # ✅ 저장 및 업로드
     tmp_filename = f"/tmp/receipt_{receiver}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
     img.save(tmp_filename, "JPEG", quality=95)
 
@@ -398,6 +402,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
