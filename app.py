@@ -202,15 +202,24 @@ def summary():
     if df.empty or "받는사람" not in df.columns:
         return render_template("summary.html", summary_data=None, message="등록된 자재 데이터가 없습니다.")
 
+    # ✅ 로그인한 사용자가 '받는사람'인 데이터만 추출
     df = df[df["받는사람"] == user_id]
     if df.empty:
         return render_template("summary.html", summary_data=None, message="등록된 자재 데이터가 없습니다.")
 
-    summary = df.groupby(["통신방식", "구분"], as_index=False).agg({"수량": "sum", "박스번호": "count"})
-    summary.rename(columns={"수량": "합계", "박스번호": "박스수"}, inplace=True)
-    summary.sort_values(["통신방식", "구분"], inplace=True)
+    # ✅ 통신방식 + 구분별 집계
+    summary = (
+        df.groupby(["통신방식", "구분"], as_index=False)
+          .agg({"수량": "sum", "박스번호": "count"})
+          .rename(columns={"수량": "합계", "박스번호": "박스수"})
+    )
 
+    # ✅ 정렬 추가 (통신방식, 구분 기준)
+    summary = summary.sort_values(by=["통신방식", "구분"], ascending=[True, True], key=lambda col: col.astype(str))
+
+    # ✅ 렌더링
     return render_template("summary.html", summary_data=summary.to_dict("records"))
+
 
 
 # =========================================================
@@ -429,6 +438,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
