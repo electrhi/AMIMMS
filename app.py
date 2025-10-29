@@ -158,18 +158,34 @@ def confirm():
         # ✅ 인수증 이미지 생성 및 업로드
         receipt_link = generate_receipt(materials, giver, receiver, giver_sign, receiver_sign)
 
-        # ✅ 세션에 저장해 /download_receipt에서 활용 가능
+        # ✅ Google Sheets에 기록 추가
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        for m in materials:
+            try:
+                records_sheet.append_row([
+                    m.get("통신방식", ""),
+                    m.get("구분", ""),
+                    giver,
+                    receiver,
+                    m.get("신철", ""),
+                    m.get("수량", ""),
+                    m.get("박스번호", ""),
+                    now
+                ])
+                print(f"✅ Records 시트에 등록 완료: {m}")
+            except Exception as e:
+                print(f"❌ Google Sheet 기록 오류: {e}")
+
+        # ✅ 세션에 저장해서 /download_receipt에서 사용
         session["last_receipt"] = receipt_link
         session["last_receiver"] = receiver
 
-        # ✅ result.html에 링크만 전달
-        return render_template(
-            "result.html",
-            receipt_link=receipt_link
-        )
+        # ✅ 결과 페이지 렌더링
+        return render_template("result.html", receipt_link=receipt_link)
 
-
+    # GET 요청이면 확인 페이지로
     return render_template("confirm.html", materials=materials, logged_user=logged_user)
+
 
 
 # =========================================================
@@ -413,6 +429,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
