@@ -355,12 +355,16 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
 
     img = img.convert("RGB")
 
-    # 하단 구분선 & 테두리
-    draw.rectangle([(50, 40), (850, y + 150)], outline="#222", width=3)
+    # ✅ 하단 테두리 + 바닥글
+    draw.rectangle([(50, 40), (width - 80, height - 50)], outline="#222", width=3)
+    draw.line([(80, height - 140), (width - 80, height - 140)], fill="#DDD", width=2)
+    draw.text(
+        (width // 2 - 250, height - 120),
+        "한전KDN 주식회사 | AMI 자재관리시스템",
+        font=small_font,
+        fill="#666"
+        )
 
-    # 바닥글
-    draw.line([(50, y + 100), (850, y + 100)], fill="#DDD", width=1)
-    draw.text((width//2 - 160, y + 110), "한전KDN 주식회사 | AMI 자재관리시스템", font=small_font, fill="#666")
 
     # ✅ 저장 및 업로드
     tmp_filename = f"/tmp/receipt_{receiver}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
@@ -409,6 +413,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
