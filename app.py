@@ -14,6 +14,7 @@ import ssl
 import certifi
 import gspread
 import urllib3
+import google.auth.transport.requests  # ✅ 추가 필요!!
 
 # =========================================================
 # ✅ SSL 인증 안정화 (Render + Google API)
@@ -31,9 +32,12 @@ class SSLAdapter(requests.adapters.HTTPAdapter):
         kwargs['ssl_context'] = context
         return super().init_poolmanager(*args, **kwargs)
 
-# ✅ requests 전용 세션 (Flask session과 이름 구분)
-http_session = requests.Session()
-http_session.mount("https://", SSLAdapter())
+# ✅ Flask와 gspread 모두에서 사용할 안전한 HTTPS 세션
+secure_session = requests.Session()
+secure_session.mount("https://", SSLAdapter())
+
+# ✅ gspread / Google Sheets 요청도 동일한 SSL 세션 사용하도록 강제
+google.auth.transport.requests.AuthorizedSession = lambda creds: secure_session
 
 # =========================================================
 # ✅ Flask 초기화
@@ -476,6 +480,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
