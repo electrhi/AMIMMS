@@ -84,8 +84,12 @@ async function loadData() {
     receivers.add(row["받는사람"]);
   });
 
-  const combos = Array.from(comboSet);
-  const receiverList = Array.from(receivers);
+  const combos = Array.from(comboSet).sort((a, b) => {
+  const [typeA, catA] = a.split(" | ");
+  const [typeB, catB] = b.split(" | ");
+  return typeA.localeCompare(typeB, "ko") || catA.localeCompare(catB, "ko");
+  });
+  const receiverList = Array.from(receivers).sort((a, b) => a.localeCompare(b, "ko"));
 
   // ✅ 피벗 테이블 생성
   const pivot = {};
@@ -130,3 +134,4 @@ window.addEventListener("DOMContentLoaded", loadData);
 
 </body>
 </html>
+
