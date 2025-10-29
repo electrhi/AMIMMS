@@ -296,14 +296,14 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     bold_font = ImageFont.truetype(font_path, 36)
     small_font = ImageFont.truetype(font_path, 26)
 
-    # ✅ 로고 (크기 줄이기 + 예쁜 위치)
+        # ✅ 로고 (크기 줄이기 + 위치 조정)
     base_dir = os.path.dirname(__file__)
     logo_path = os.path.join(base_dir, "static", "kdn_logo.png")
 
     if os.path.exists(logo_path):
         logo = Image.open(logo_path).convert("RGBA")
-        logo.thumbnail((200, 140))  # 🔹 높이 줄임 (이전 200 → 140)
-        img.paste(logo, (width - 240, 80), logo)  # 🔹 위치도 살짝 조정
+        logo.thumbnail((160, 100))  # 🔹 더 작게 (가로 160, 세로 약 100)
+        img.paste(logo, (width - 260, 60), logo)  # 🔹 상단 오른쪽 여백 살짝 줄임
 
     # ✅ 제목 & 날짜
     draw.text((width // 2 - 150, 100), "자재 인수증", font=title_font, fill="black")
@@ -339,33 +339,33 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
 
     giver_img, receiver_img = decode_sign(giver_sign), decode_sign(receiver_sign)
 
-    # ✅ 서명 위치
-    footer_y = height - 200
-    draw.text((200, footer_y + 40), f"주는 사람: {giver} (인)", font=bold_font, fill="black")
-    draw.text((800, footer_y + 40), f"받는 사람: {receiver} (인)", font=bold_font, fill="black")
+    # ✅ 서명 텍스트 위치 (조정됨)
+    footer_y = height - 230  # 🔹 기존 -200 → -230으로 약간 위로
+    draw.text((180, footer_y + 70), f"주는 사람: {giver} (인)", font=bold_font, fill="black")
+    draw.text((780, footer_y + 70), f"받는 사람: {receiver} (인)", font=bold_font, fill="black")
 
-    # ✅ 서명이 글자 위에 겹치도록 조정 (겹침효과)
+    # ✅ 서명 이미지 (살짝 위로 올림 & 크기 균형)
     if giver_img:
-        giver_resized = giver_img.resize((220, 100))
-        img.paste(giver_resized, (350, footer_y - 10), giver_resized)  # 👈 글자보다 위로 올림
+        giver_resized = giver_img.resize((200, 90))
+        img.paste(giver_resized, (400, footer_y + 5), giver_resized)
 
     if receiver_img:
-        receiver_resized = receiver_img.resize((220, 100))
-        img.paste(receiver_resized, (950, footer_y - 10), receiver_resized)
+        receiver_resized = receiver_img.resize((200, 90))
+        img.paste(receiver_resized, (1000, footer_y + 5), receiver_resized)
 
-    # ✅ 서명 겹침 처리까지 끝난 후
+    # ✅ 변환 후 다시 draw 객체 생성
     img = img.convert("RGB")
-    draw = ImageDraw.Draw(img)  # 🔹 새로 선언!
+    draw = ImageDraw.Draw(img)
 
-    # ✅ 하단 테두리 + 바닥글
+    # ✅ 하단 테두리 + 바닥글 (위로 약간 올림)
     draw.rectangle([(50, 40), (width - 80, height - 50)], outline="#222", width=3)
-    draw.line([(80, height - 140), (width - 80, height - 140)], fill="#DDD", width=2)
+    draw.line([(80, height - 150), (width - 80, height - 150)], fill="#DDD", width=2)
     draw.text(
-        (width // 2 - 250, height - 120),
+        (width // 2 - 230, height - 130),
         "한전KDN 주식회사 | AMI 자재관리시스템",
         font=small_font,
         fill="#666"
-        )
+    )
 
 
     # ✅ 저장 및 업로드
@@ -415,6 +415,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
