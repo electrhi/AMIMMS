@@ -347,13 +347,20 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     # ✅ 서명이 글자 위에 겹치도록 조정 (겹침효과)
     if giver_img:
         giver_resized = giver_img.resize((220, 100))
-        img.paste(giver_resized, (320, footer_y - 10), giver_resized)  # 👈 글자보다 위로 올림
+        img.paste(giver_resized, (350, footer_y - 10), giver_resized)  # 👈 글자보다 위로 올림
 
     if receiver_img:
         receiver_resized = receiver_img.resize((220, 100))
-        img.paste(receiver_resized, (920, footer_y - 10), receiver_resized)
+        img.paste(receiver_resized, (950, footer_y - 10), receiver_resized)
 
     img = img.convert("RGB")
+
+    # 하단 구분선 & 테두리
+    draw.rectangle([(50, 40), (850, y + 150)], outline="#222", width=3)
+
+    # 바닥글
+    draw.line([(50, y + 100), (850, y + 100)], fill="#DDD", width=1)
+    draw.text((width//2 - 160, y + 110), "한전KDN 주식회사 | AMI 자재관리시스템", font=font_small, fill="#666")
 
     # ✅ 저장 및 업로드
     tmp_filename = f"/tmp/receipt_{receiver}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg"
@@ -402,6 +409,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
