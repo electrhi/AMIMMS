@@ -302,7 +302,7 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
 
     if os.path.exists(logo_path):
         logo = Image.open(logo_path).convert("RGBA")
-        logo.thumbnail((140, 140))  # 🔹 높이 줄임 (이전 200 → 140)
+        logo.thumbnail((200, 140))  # 🔹 높이 줄임 (이전 200 → 140)
         img.paste(logo, (width - 240, 80), logo)  # 🔹 위치도 살짝 조정
 
     # ✅ 제목 & 날짜
@@ -402,6 +402,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
