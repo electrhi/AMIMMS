@@ -150,7 +150,7 @@ def confirm():
 
         # ✅ 세션에 저장해 /download_receipt에서 활용 가능
         session["last_receipt"] = receipt_link
-        session["last_receiver"] = receive
+        session["last_receiver"] = receiver
 
         # ✅ result.html에 링크만 전달
         return render_template(
@@ -442,6 +442,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
