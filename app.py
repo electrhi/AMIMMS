@@ -15,6 +15,7 @@ import certifi
 import gspread
 import urllib3
 import google.auth.transport.requests
+from flask import jsonify
 
 # =========================================================
 # ✅ SSL 인증 안정화 (Render + Google API)
@@ -197,7 +198,7 @@ def summary():
 
 
 # =========================================================
-# ✅ 관리자용 종합관리표 (주는사람 기준)
+# ✅ 관리자용 종합관리표 (클라이언트 렌더링)
 # =========================================================
 @app.route("/admin_summary")
 def admin_summary():
@@ -207,102 +208,29 @@ def admin_summary():
         return "❌ 접근 권한이 없습니다.", 403
 
     user_id = session.get("user_id", "")
-    df = pd.DataFrame(records_sheet.get_all_records())
-
-    if df.empty:
-        return render_template("admin_summary.html", message="등록된 자재 데이터가 없습니다.", user_id=user_id)
-
-    # ✅ 로그인한 사용자가 '주는사람'인 데이터만 필터링
-    df = df[df["주는사람"] == user_id]
-    if df.empty:
-        return render_template("admin_summary.html", message="해당 사용자의 기록이 없습니다.", user_id=user_id)
-
-    # ✅ 피벗테이블 생성
-    pivot = pd.pivot_table(
-        df,
-        index=["통신방식", "구분"],     # 행
-        columns="받는사람",             # 열
-        values="수량",                 # 값
-        aggfunc="sum",                # 합계
-        fill_value=0
-    )
-
-    # ✅ 합계 행 추가
-    pivot.loc[("합계", "")] = pivot.sum(numeric_only=True)
-
-    # ✅ 보기 좋게 정렬
-    pivot = pivot.sort_index()
-
-    # ✅ 테이블 HTML 변환
-    table_html = pivot.to_html(classes="table-auto border text-center", border=1)
-
-    # ✅ 템플릿 렌더링
-    return render_template(
-        "admin_summary.html",
-        table_html=table_html,
-        user_id=user_id
-    )
-
+    return render_template("admin_summary.html", user_id=user_id)
 
 # =========================================================
-# ✅ 관리자 종합관리표 엑셀 다운로드
+# ✅ 관리자용 종합관리표 API (JSON 데이터 반환)
 # =========================================================
-@app.route("/download_admin_summary")
-def download_admin_summary():
+@app.route("/api/admin_data")
+def admin_data_api():
     if not session.get("logged_in"):
-        return redirect(url_for("login"))
+        return jsonify({"error": "로그인 필요"}), 403
     if session.get("authority") != "y":
-        return "❌ 접근 권한이 없습니다.", 403
+        return jsonify({"error": "권한 없음"}), 403
 
     user_id = session.get("user_id", "")
     df = pd.DataFrame(records_sheet.get_all_records())
 
     if df.empty:
-        return "❌ 다운로드할 데이터가 없습니다.", 404
+        return jsonify({"data": []})
 
-    # ✅ 로그인한 사용자가 준 자재만 필터
     df = df[df["주는사람"] == user_id]
     if df.empty:
-        return "❌ 해당 사용자의 데이터가 없습니다.", 404
+        return jsonify({"data": []})
 
-    # ✅ 피벗테이블 구성
-    pivot = pd.pivot_table(
-        df,
-        index=["통신방식", "구분"],
-        columns="받는사람",
-        values="수량",
-        aggfunc="sum",
-        fill_value=0
-    )
-
-    pivot.loc[("합계", "")] = pivot.sum(numeric_only=True)
-    pivot.reset_index(inplace=True)
-
-    # ✅ 엑셀 생성
-    wb = Workbook()
-    ws = wb.active
-    ws.title = f"{user_id}_종합관리표"
-
-    # 헤더 작성
-    for col_idx, col_name in enumerate(pivot.columns, start=1):
-        ws.cell(row=1, column=col_idx, value=col_name)
-    # 데이터 작성
-    for row_idx, row in enumerate(pivot.values.tolist(), start=2):
-        for col_idx, val in enumerate(row, start=1):
-            ws.cell(row=row_idx, column=col_idx, value=val)
-
-    output = BytesIO()
-    wb.save(output)
-    output.seek(0)
-
-    filename = f"{user_id}_종합관리표_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
-    return send_file(
-        output,
-        as_attachment=True,
-        download_name=filename,
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )
-
+    return jsonify({"data": df.to_dict(orient="records")})
 
 # =========================================================
 # ✅ GCS 업로드 함수
@@ -485,6 +413,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
