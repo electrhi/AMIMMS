@@ -14,13 +14,10 @@ import ssl
 import certifi
 import gspread
 import urllib3
-import google.auth.transport.requests  # ✅ 추가 필요!!
+import google.auth.transport.requests
 
 # =========================================================
 # ✅ SSL 인증 안정화 (Render + Google API)
-# =========================================================
-# certifi의 최신 CA 번들을 이용해 HTTPS 통신 안정화
-# urllib3 / requests / gspread 모두 동일하게 적용됨
 # =========================================================
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -32,26 +29,18 @@ class SSLAdapter(requests.adapters.HTTPAdapter):
         kwargs['ssl_context'] = context
         return super().init_poolmanager(*args, **kwargs)
 
-# ✅ Flask와 gspread 모두에서 사용할 안전한 HTTPS 세션
+# ✅ 안전한 HTTPS 세션 생성
 secure_session = requests.Session()
 secure_session.mount("https://", SSLAdapter())
 
-# ✅ gspread / Google Sheets HTTPS 세션 안전 교체 (클래스형)
-import google.auth.transport.requests
-
-# 원래 AuthorizedSession 클래스를 보존
-OriginalAuthorizedSession = google.auth.transport.requests.AuthorizedSession
-
-class PatchedAuthorizedSession(OriginalAuthorizedSession):
-    """기존 AuthorizedSession을 확장하여 secure_session 사용"""
+# ✅ AuthorizedSession을 덮어쓰지 않고, 별도로 안전 세션 사용
+class SecureAuthorizedSession(google.auth.transport.requests.AuthorizedSession):
+    """기존 AuthorizedSession 내부 세션을 안전한 세션으로 교체"""
     def __init__(self, credentials, *args, **kwargs):
         super().__init__(credentials, *args, **kwargs)
+        # 기존 세션을 SSLAdapter 적용 세션으로 대체
         self._session = secure_session
         self.session = secure_session
-
-# gspread가 사용할 AuthorizedSession 클래스를 교체
-google.auth.transport.requests.AuthorizedSession = PatchedAuthorizedSession
-
 
 # =========================================================
 # ✅ Flask 초기화
@@ -69,7 +58,10 @@ if not GOOGLE_CREDENTIALS_JSON:
     raise RuntimeError("❌ GOOGLE_CREDENTIALS_JSON 환경 변수가 설정되지 않았습니다.")
 
 CREDS = Credentials.from_service_account_info(json.loads(GOOGLE_CREDENTIALS_JSON), scopes=SCOPES)
-gc = gspread.authorize(CREDS)
+
+# ✅ gspread에 SecureAuthorizedSession을 명시적으로 적용
+client = gspread.Client(auth=CREDS, session=SecureAuthorizedSession(CREDS))
+gc = client
 
 # 환경 변수로 시트 키 및 버킷 이름 로드
 USERS_SHEET_KEY = os.getenv("GOOGLE_USERS_SHEET_KEY")
@@ -79,7 +71,6 @@ GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME", "amimms-receipts")
 # 구글 시트 객체 초기화
 users_sheet = gc.open_by_key(USERS_SHEET_KEY).sheet1
 records_sheet = gc.open_by_key(RECORDS_SHEET_KEY).sheet1
-
 
 # =========================================================
 # ✅ 로그인
@@ -494,6 +485,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
