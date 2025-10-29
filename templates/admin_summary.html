@@ -5,6 +5,44 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>📊 관리자 종합관리표</title>
 <script src="https://cdn.tailwindcss.com"></script>
+
+<!-- ✅ 스타일은 <head> 안으로 이동 -->
+<style>
+  /* ✅ 표 스타일 개선 */
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 1000px; /* 너무 좁아지지 않게 최소폭 지정 */
+    table-layout: auto;
+    font-size: 0.85rem;  /* 글자 약간 줄이기 */
+    white-space: nowrap; /* 글자 줄바꿈 방지 → 가로 스크롤 허용 */
+  }
+
+  th, td {
+    padding: 6px 10px;
+    text-align: center;
+    border: 1px solid #ccc;
+  }
+
+  thead th {
+    position: sticky;   /* ✅ 머리글 고정 */
+    top: 0;
+    background-color: #e8f0fe;
+    z-index: 1;
+  }
+
+  /* ✅ 행 hover 효과 */
+  tbody tr:hover {
+    background-color: #f9f9f9;
+  }
+
+  /* ✅ 긴 이름일 때 자동 줄이기 */
+  td {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+</style>
 </head>
 <body class="bg-gray-100 p-6">
 
@@ -13,7 +51,9 @@
     📊 종합관리표 (클라이언트 렌더링)
   </h2>
 
-  <div id="table-container" class="overflow-x-auto"></div>
+  <!-- ✅ 표 컨테이너 -->
+  <div id="table-container" 
+       class="overflow-x-auto max-w-full mt-4 border border-gray-200 rounded-lg shadow-inner"></div>
 
   <div class="flex justify-center mt-8">
     <a href="{{ url_for('menu') }}" 
