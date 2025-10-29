@@ -309,24 +309,24 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     draw.text((width // 2 - 150, 100), "자재 인수증", font=title_font, fill="black")
     draw.text((100, 230), f"작성일자: {datetime.now().strftime('%Y-%m-%d')}", font=bold_font, fill="black")
 
-    # ✅ 표 헤더
+        # ✅ 표 헤더 (폭 조정 — 오른쪽 넘침 방지)
     y = 360
     headers = ["통신방식", "구분", "신철", "수량", "박스번호"]
-    positions = [100, 400, 600, 800, 1000]
+    positions = [100, 380, 580, 780, 960]  # 🔹 전체적으로 왼쪽으로 40px씩 줄임
     row_height = 60
 
-    draw.rectangle((80, y, 1160, y + row_height), outline="black", fill="#E8F0FE")
+    draw.rectangle((80, y, 1100, y + row_height), outline="black", fill="#E8F0FE")
     for i, h in enumerate(headers):
         draw.text((positions[i], y + 10), h, font=bold_font, fill="black")
 
     y += row_height
     for m in materials:
-        draw.rectangle((80, y, 1160, y + row_height), outline="black", fill="white")
+        draw.rectangle((80, y, 1100, y + row_height), outline="black", fill="white")
         for i, key in enumerate(headers):
             draw.text((positions[i], y + 10), str(m.get(key, "")), font=bold_font, fill="black")
         y += row_height
 
-    draw.rectangle((80, 360, 1160, y), outline="black")
+    draw.rectangle((80, 360, 1100, y), outline="black")
 
     # ✅ 서명 디코드
     def decode_sign(s):
@@ -339,29 +339,32 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
 
     giver_img, receiver_img = decode_sign(giver_sign), decode_sign(receiver_sign)
 
-    # ✅ 서명 텍스트 위치 (조정됨)
-    footer_y = height - 230  # 🔹 기존 -200 → -230으로 약간 위로
-    draw.text((180, footer_y + 70), f"주는 사람: {giver} (인)", font=bold_font, fill="black")
-    draw.text((780, footer_y + 70), f"받는 사람: {receiver} (인)", font=bold_font, fill="black")
+    # ✅ 하단 기준선 (footer line)
+    footer_line_y = height - 180  # 하단 라인 위치 (기준)
+    draw.line([(80, footer_line_y), (width - 80, footer_line_y)], fill="#DDD", width=2)
 
-    # ✅ 서명 이미지 (살짝 위로 올림 & 크기 균형)
+    # ✅ 서명 텍스트 (라인 위로 올림)
+    text_y = footer_line_y - 70  # 기존보다 위쪽으로 배치
+    draw.text((180, text_y), f"주는 사람: {giver} (인)", font=bold_font, fill="black")
+    draw.text((780, text_y), f"받는 사람: {receiver} (인)", font=bold_font, fill="black")
+
+    # ✅ 서명 이미지 (텍스트 바로 위)
     if giver_img:
         giver_resized = giver_img.resize((200, 90))
-        img.paste(giver_resized, (400, footer_y + 5), giver_resized)
+        img.paste(giver_resized, (400, text_y - 60), giver_resized)  # 텍스트 위에 자연스럽게
 
     if receiver_img:
         receiver_resized = receiver_img.resize((200, 90))
-        img.paste(receiver_resized, (1000, footer_y + 5), receiver_resized)
+        img.paste(receiver_resized, (1000, text_y - 60), receiver_resized)
 
-    # ✅ 변환 후 다시 draw 객체 생성
+    # ✅ RGB 변환 후 새 draw 객체
     img = img.convert("RGB")
     draw = ImageDraw.Draw(img)
 
-    # ✅ 하단 테두리 + 바닥글 (위로 약간 올림)
+    # ✅ 하단 테두리 + 바닥글 (라인보다 약간 아래에 위치)
     draw.rectangle([(50, 40), (width - 80, height - 50)], outline="#222", width=3)
-    draw.line([(80, height - 150), (width - 80, height - 150)], fill="#DDD", width=2)
     draw.text(
-        (width // 2 - 230, height - 130),
+        (width // 2 - 230, height - 120),
         "한전KDN 주식회사 | AMI 자재관리시스템",
         font=small_font,
         fill="#666"
@@ -415,6 +418,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
