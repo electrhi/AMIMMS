@@ -344,18 +344,18 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
     draw.line([(80, footer_line_y), (width - 80, footer_line_y)], fill="#DDD", width=2)
 
     # ✅ 서명 텍스트 (라인 위로 올림)
-    text_y = footer_line_y - 70  # 기존보다 위쪽으로 배치
+    text_y = footer_line_y - 70
     draw.text((180, text_y), f"주는 사람: {giver} (인)", font=bold_font, fill="black")
-    draw.text((780, text_y), f"받는 사람: {receiver} (인)", font=bold_font, fill="black")
+    draw.text((700, text_y), f"받는 사람: {receiver} (인)", font=bold_font, fill="black")  # ← 기존 780 → 700
 
     # ✅ 서명 이미지 (텍스트 바로 위)
     if giver_img:
         giver_resized = giver_img.resize((200, 90))
-        img.paste(giver_resized, (400, text_y - 60), giver_resized)  # 텍스트 위에 자연스럽게
+        img.paste(giver_resized, (380, text_y - 60), giver_resized)
 
     if receiver_img:
         receiver_resized = receiver_img.resize((200, 90))
-        img.paste(receiver_resized, (1000, text_y - 60), receiver_resized)
+        img.paste(receiver_resized, (940, text_y - 60), receiver_resized)  # ← 기존 1000 → 940
 
     # ✅ RGB 변환 후 새 draw 객체
     img = img.convert("RGB")
@@ -418,6 +418,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
