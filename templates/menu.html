@@ -12,7 +12,7 @@
     <p class="text-gray-600 mb-4">로그인 사용자: <b>{{ user_id }}</b></p>
 
     <!-- ✅ form_page → form 으로 수정 -->
-    <a href="{{ url_for('form') }}" class="block bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg mb-4">
+    <a href="{{ url_for('form',new=1) }}" class="block bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg mb-4">
       자재 인수증 작성
     </a>
 
@@ -37,3 +37,4 @@
   </div>
 </body>
 </html>
+
