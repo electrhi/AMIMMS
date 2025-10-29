@@ -381,7 +381,7 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
 # ✅ Google Sheets 저장
 # =========================================================
 def save_to_sheets(materials, giver, receiver):
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = datetime.now().strftime("%Y-%m-%d")
     for m in materials:
         records_sheet.append_row([
             m["통신방식"], m["구분"], giver, receiver,
@@ -415,6 +415,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
