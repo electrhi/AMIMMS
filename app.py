@@ -36,8 +36,22 @@ class SSLAdapter(requests.adapters.HTTPAdapter):
 secure_session = requests.Session()
 secure_session.mount("https://", SSLAdapter())
 
-# ✅ gspread / Google Sheets 요청도 동일한 SSL 세션 사용하도록 강제
-google.auth.transport.requests.AuthorizedSession = lambda creds: secure_session
+# ✅ gspread / Google Sheets HTTPS 세션 안전 교체 (클래스형)
+import google.auth.transport.requests
+
+# 원래 AuthorizedSession 클래스를 보존
+OriginalAuthorizedSession = google.auth.transport.requests.AuthorizedSession
+
+class PatchedAuthorizedSession(OriginalAuthorizedSession):
+    """기존 AuthorizedSession을 확장하여 secure_session 사용"""
+    def __init__(self, credentials, *args, **kwargs):
+        super().__init__(credentials, *args, **kwargs)
+        self._session = secure_session
+        self.session = secure_session
+
+# gspread가 사용할 AuthorizedSession 클래스를 교체
+google.auth.transport.requests.AuthorizedSession = PatchedAuthorizedSession
+
 
 # =========================================================
 # ✅ Flask 초기화
@@ -480,6 +494,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
