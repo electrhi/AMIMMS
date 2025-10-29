@@ -72,12 +72,25 @@
     </div>
 
     <div class="flex justify-center gap-4 mt-8">
-      <a href="{{ url_for('form', new=1) }}" 
-         class="bg-gray-500 text-white px-5 py-2 rounded-lg hover:bg-gray-600">⬅ 새 인수증 작성</a>
-      <button type="submit" class="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700">인수증 생성</button>
-    </div>
-  </form>
+  <!-- ✅ 이전 버튼 (form으로 돌아가기) -->
+  <a href="{{ url_for('form', new=1) }}" 
+     class="bg-gray-400 text-white px-5 py-2 rounded-lg hover:bg-gray-500">
+     ⬅ 이전
+  </a>
+
+  <!-- ✅ 새 인수증 작성 (완전히 새로 시작) -->
+  <a href="{{ url_for('form', new=1) }}" 
+     class="bg-gray-500 text-white px-5 py-2 rounded-lg hover:bg-gray-600">
+     🧾 새 인수증 작성
+  </a>
+
+  <!-- ✅ 인수증 생성 -->
+  <button type="submit" class="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700">
+     인수증 생성
+  </button>
 </div>
+
+
 
 <script>
   // ✅ 공통 서명 초기화
@@ -167,4 +180,5 @@
 
 </body>
 </html>
+
 
