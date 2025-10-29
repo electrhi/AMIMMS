@@ -353,7 +353,9 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
         receiver_resized = receiver_img.resize((220, 100))
         img.paste(receiver_resized, (950, footer_y - 10), receiver_resized)
 
+    # ✅ 서명 겹침 처리까지 끝난 후
     img = img.convert("RGB")
+    draw = ImageDraw.Draw(img)  # 🔹 새로 선언!
 
     # ✅ 하단 테두리 + 바닥글
     draw.rectangle([(50, 40), (width - 80, height - 50)], outline="#222", width=3)
@@ -413,6 +415,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
