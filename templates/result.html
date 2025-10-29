@@ -24,9 +24,9 @@
 
     <!-- ✅ 다운로드 링크 (GCS 링크 직접 연결) -->
     {% if receipt_link %}
-      <a href="{{ receipt_link }}" download target="_blank"
-         class="block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg mb-4">
-         📥 인수증 다운로드
+      <a href="{{ url_for('download_receipt') }}"
+        class="block bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg mb-4">
+        📥 인수증 다운로드
       </a>
     {% endif %}
 
@@ -39,3 +39,4 @@
 
 </body>
 </html>
+
