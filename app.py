@@ -309,7 +309,7 @@ def generate_receipt(materials, giver, receiver, giver_sign, receiver_sign):
         # ✅ 표 헤더 (폭 조정 — 오른쪽 넘침 방지)
     y = 360
     headers = ["통신방식", "구분", "신철", "수량", "박스번호"]
-    positions = [100, 380, 580, 780, 960]  # 🔹 전체적으로 왼쪽으로 40px씩 줄임
+    positions = [100, 340, 580, 780, 960]  # 🔹 전체적으로 왼쪽으로 40px씩 줄임
     row_height = 60
 
     draw.rectangle((80, y, 1100, y + row_height), outline="black", fill="#E8F0FE")
@@ -438,6 +438,7 @@ def logout():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
+
 
 
 
